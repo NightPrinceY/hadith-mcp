@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hadith-mcp"
+version = "0.1.0"
+description = "MCP server for canonical hadith text with embeddings and cross-references"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+  "fastmcp>=3.0,<4",
+  "mcp>=1.26,<2",
+  "pydantic>=2.12,<3",
+  "pydantic-settings>=2.13,<3",
+  "httpx>=0.28,<0.29",
+  "openai>=1.0,<2",
+  "numpy>=1.26,<3",
+  "python-dotenv>=1.0,<2",
+  "pyyaml>=6.0,<7",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "pytest-asyncio>=0.24",
+  "ruff>=0.8",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"

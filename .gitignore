@@ -1,0 +1,19 @@
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.env
+data/*.db
+data/*.db-journal
+data/*.bk
+.tmp_test.txt
+data/*checkpoint*.jsonl
+data/embeddings_*.jsonl
+.pytest_cache/
+.ruff_cache/
+
+# Large vendored / reference trees (do not push)
+quran-mcp-master/
+hadith-json-main/
