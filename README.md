@@ -78,7 +78,20 @@ For a **single-machine** full build (import + embed + cross + provenance), run `
 
 ## License
 
-Specify a license before publishing (upstream **hadith-json** and site terms apply to the **content** you redistribute; this **code** is yours to license separately).
+- **This repository (code, scripts, docs we wrote):** [GNU General Public License v3.0 only](LICENSE) (GPL-3.0-only). That is a strong copyleft FOSS license: people who distribute derivatives of your code (or a combined work that links GPL code in certain ways) generally need to release their changes under GPL-compatible terms as well. GPLv3 adds a few clauses compared to GPLv2 (for example around patents and tivoization). If you specifically need GPLv2-only compatibility with another GPLv2-only project, we can switch the license text—ask before there are many external contributors.
+- **Hadith text and other upstream content** are **not** relicensed by our GPL: they stay under **[hadith-json](https://github.com/AhmedBaset/hadith-json)** / [Sunnah.com](https://sunnah.com/) terms. Ship attribution and comply with those terms when you redistribute databases or excerpts.
+
+### Releases and data integrity (when `hadith.db` is ready)
+
+Cryptographic **signing** proves **who published** an artifact and that the **bytes did not change** after signing. It does **not** prove religious “accuracy” of every narration or that every automated cross-reference is perfect—that still depends on sources, methodology, and human review.
+
+Practical stack many projects use:
+
+1. **Checksums** — Publish `SHA256SUMS` (or `sha256sum hadith.db`) next to each release asset so anyone can verify the download is bit-for-bit what you built.
+2. **Detached signatures** — Sign those checksums (or sign the database file directly) with **GPG** or **[Sigstore](https://www.sigstore.dev/)** so users can verify it came from your release key.
+3. **Reproducibility** — Document exact inputs: pinned **hadith-json** tag/commit, pipeline **git tag**, embedding **model id**, and script versions so others can audit or rebuild.
+
+Signing is worthwhile if you distribute `hadith.db` as a **release binary**; for a purely local build, checksums alone are often enough.
 
 ## Contributing
 

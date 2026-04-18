@@ -1,0 +1,10 @@
+hadith-mcp — pipeline and (planned) MCP server for canonical hadith data
+
+Copyright (C) 2026 ovehbe and contributors
+
+Licensed under the GNU General Public License v3.0 only (GPL-3.0-only).
+See the LICENSE file for the full legal text.
+
+Third-party text (hadith matn, translations, and similar) is not covered
+by this copyright; it remains subject to upstream licenses and terms
+(see README.md).
