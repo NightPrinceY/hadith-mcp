@@ -23,6 +23,7 @@ dependencies = [
   "numpy>=1.26,<3",
   "python-dotenv>=1.0,<2",
   "pyyaml>=6.0,<7",
+  "tiktoken>=0.7,<1",
 ]
 
 [project.optional-dependencies]

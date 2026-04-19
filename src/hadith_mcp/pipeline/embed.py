@@ -10,21 +10,37 @@ from pathlib import Path
 from typing import Sequence
 
 import numpy as np
+import tiktoken
 from openai import APIStatusError, OpenAI
 
 from hadith_mcp.pipeline.checkpoint import append_embedding_checkpoint, init_checkpoint_file
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 3072
-# Stay under model context limits (tokens); long Arabic isnad + matn can be huge.
-MAX_EMBED_CHARS = 28_000
+# OpenAI embedding models accept at most 8192 tokens; Arabic can be >1 token/char vs char cuts.
+MAX_EMBED_TOKENS = 8000
+_TIKTOKEN_ENC: tiktoken.Encoding | None = None
 
 
-def truncate_embed_input(text: str, *, max_chars: int = MAX_EMBED_CHARS) -> str:
+def _tiktoken_enc() -> tiktoken.Encoding:
+    global _TIKTOKEN_ENC
+    if _TIKTOKEN_ENC is None:
+        # Same family as GPT-4 / text-embedding-ada-002; valid for counting OpenAI embed inputs.
+        _TIKTOKEN_ENC = tiktoken.get_encoding("cl100k_base")
+    return _TIKTOKEN_ENC
+
+
+def truncate_embed_input(text: str, *, max_tokens: int = MAX_EMBED_TOKENS) -> str:
+    """Clip text to a safe token budget (API hard limit 8192 tokens)."""
     t = text.strip()
-    if len(t) <= max_chars:
+    if not t:
+        return ""
+    enc = _tiktoken_enc()
+    ids = enc.encode(t)
+    if len(ids) <= max_tokens:
         return t
-    return t[: max_chars - 24] + "\n[...truncated-for-embed...]"
+    clipped = enc.decode(ids[:max_tokens])
+    return clipped + "\n[...truncated-for-embed...]"
 
 
 def to_blob(vec: list[float] | np.ndarray) -> bytes:
@@ -51,6 +67,37 @@ def embed_batch(client: OpenAI, texts: Sequence[str]) -> list[list[float]]:
     resp = client.embeddings.create(model=EMBEDDING_MODEL, input=list(texts))
     data = sorted(resp.data, key=lambda x: x.index)
     return [d.embedding for d in data]
+
+
+def _is_context_length_error(exc: BaseException) -> bool:
+    msg = str(exc).lower()
+    return "maximum context length" in msg or "8192" in msg
+
+
+def embed_one_safe(client: OpenAI, text: str) -> list[float]:
+    """Embed one string; shrink by token count if the API still rejects length (tokenizer edge cases)."""
+    last: BaseException | None = None
+    for lim in (MAX_EMBED_TOKENS, 6000, 4000, 2000, 1000, 512):
+        payload = truncate_embed_input(text, max_tokens=lim)
+        try:
+            return embed_one(client, payload)
+        except BaseException as exc:  # noqa: BLE001
+            if _is_context_length_error(exc):
+                last = exc
+                continue
+            raise
+    assert last is not None
+    raise last
+
+
+def embed_batch_safe(client: OpenAI, texts: list[str]) -> list[list[float]]:
+    trimmed = [truncate_embed_input(t) for t in texts]
+    try:
+        return embed_batch(client, trimmed)
+    except BaseException as exc:  # noqa: BLE001
+        if not _is_context_length_error(exc):
+            raise
+        return [embed_one_safe(client, t) for t in texts]
 
 
 @dataclass
@@ -88,8 +135,8 @@ def _call_with_retries(
     for attempt in range(cfg.max_retries_per_request + 1):
         try:
             if len(texts) == 1:
-                return [embed_one(client, texts[0])]
-            return embed_batch(client, texts)
+                return [embed_one_safe(client, texts[0])]
+            return embed_batch_safe(client, texts)
         except BaseException as exc:  # noqa: BLE001
             last = exc
             if attempt >= cfg.max_retries_per_request:
@@ -155,12 +202,11 @@ def embed_all_hadiths(
             hid = missing[idx]
             idx += 1
             raw = texts_by_id.get(hid, "").strip()
-            t = truncate_embed_input(raw) if raw else ""
-            if not t:
+            if not raw:
                 bad += 1
                 continue
             batch_ids.append(hid)
-            batch_texts.append(t)
+            batch_texts.append(raw)
 
         if not batch_ids:
             continue
