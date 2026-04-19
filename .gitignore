@@ -5,6 +5,9 @@ __pycache__/
 dist/
 build/
 .env
+
+# Private hosting runbook (copy to server manually; not published)
+HOSTING.local.md
 data/*.db
 !data/hadith.db
 data/*.db-journal

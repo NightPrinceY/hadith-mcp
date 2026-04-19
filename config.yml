@@ -1,0 +1,16 @@
+# Optional defaults for `hadith-mcp` / `python -m hadith_mcp`.
+# Override the database path with env HADITH_MCP_DB_PATH (takes precedence).
+
+database:
+  path: data/hadith.db
+
+# Query embedding model must match vector size in hadith.db (3072 for text-embedding-3-large).
+embedding:
+  query_model: text-embedding-3-large
+
+# Anti-abuse: max semantic searches per minute per HTTP client IP (or MCP session in stdio).
+# Set to null or 0 to disable. Override with HADITH_MCP_RATE_LIMIT_SEARCH_RPM.
+rate_limit:
+  search_per_minute: 60
+  # LRU cache of identical semantic queries (0 = off). Override: HADITH_MCP_SEARCH_CACHE_MAX
+  search_cache_max_entries: 256
