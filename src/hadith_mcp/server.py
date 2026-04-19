@@ -13,7 +13,10 @@ import numpy as np
 from dotenv import load_dotenv
 from fastmcp import Context, FastMCP
 from fastmcp.server.lifespan import lifespan
+from mcp.types import Icon
 from openai import OpenAI
+from starlette.requests import Request
+from starlette.responses import Response
 
 from hadith_mcp.embeddings_index import EmbeddingIndex
 from hadith_mcp.grounding import GROUNDING_RULES
@@ -134,6 +137,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             "Semantic search falls back to keyword on rate limits, quota/billing errors, or model/index mismatch. "
             "Cross-references are algorithmic, not scholarly isnad proof."
         ),
+        icons=[Icon(src="https://hadith-mcp.org/logo.png")],
         lifespan=_lifespan,
     )
     mcp._hadith_cfg = cfg  # type: ignore[attr-defined]
@@ -436,6 +440,22 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             nonce=nonce,
             force_full=force_full,
             full_text=GROUNDING_RULES,
+        )
+
+    _ICON_PATH = Path(__file__).parent / "assets" / "icon.png"
+    _icon_bytes: bytes | None = None
+    if _ICON_PATH.is_file():
+        _icon_bytes = _ICON_PATH.read_bytes()
+        logger.info("loaded icon asset (%d bytes)", len(_icon_bytes))
+
+    @mcp.custom_route("/icon.png", methods=["GET", "HEAD"])
+    async def serve_icon(request: Request) -> Response:
+        if _icon_bytes is None:
+            return Response(status_code=404)
+        return Response(
+            content=_icon_bytes,
+            media_type="image/png",
+            headers={"Cache-Control": "public, max-age=604800, immutable"},
         )
 
     return mcp
