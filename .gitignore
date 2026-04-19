@@ -6,6 +6,7 @@ dist/
 build/
 .env
 data/*.db
+!data/hadith.db
 data/*.db-journal
 data/*.bk
 .tmp_test.txt
