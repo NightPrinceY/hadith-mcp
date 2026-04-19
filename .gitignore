@@ -21,3 +21,6 @@ data/embeddings_*.jsonl
 # Large vendored / reference trees (do not push)
 quran-mcp-master/
 hadith-json-main/
+
+# Landing page (local dev only)
+site/
