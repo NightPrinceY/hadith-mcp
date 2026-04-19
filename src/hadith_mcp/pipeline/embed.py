@@ -16,6 +16,15 @@ from hadith_mcp.pipeline.checkpoint import append_embedding_checkpoint, init_che
 
 EMBEDDING_MODEL = "text-embedding-3-large"
 EMBEDDING_DIMENSION = 3072
+# Stay under model context limits (tokens); long Arabic isnad + matn can be huge.
+MAX_EMBED_CHARS = 28_000
+
+
+def truncate_embed_input(text: str, *, max_chars: int = MAX_EMBED_CHARS) -> str:
+    t = text.strip()
+    if len(t) <= max_chars:
+        return t
+    return t[: max_chars - 24] + "\n[...truncated-for-embed...]"
 
 
 def to_blob(vec: list[float] | np.ndarray) -> bytes:
@@ -145,7 +154,8 @@ def embed_all_hadiths(
         while idx < total and len(batch_ids) < bs:
             hid = missing[idx]
             idx += 1
-            t = texts_by_id.get(hid, "").strip()
+            raw = texts_by_id.get(hid, "").strip()
+            t = truncate_embed_input(raw) if raw else ""
             if not t:
                 bad += 1
                 continue

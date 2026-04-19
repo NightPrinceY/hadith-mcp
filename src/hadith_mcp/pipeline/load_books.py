@@ -111,10 +111,15 @@ def load_all(by_book_root: Path) -> tuple[list[LoadedCollection], list[LoadedCha
     return collections, chapters, hadiths
 
 
-def embedding_input(narrator: str, english: str) -> str:
-    """Text used for OpenAI embedding (English matn + narrator)."""
+def embedding_input(narrator: str, english: str, *, arabic: str = "") -> str:
+    """Text used for OpenAI embedding: prefer English narrator + matn, else Arabic matn.
+
+    Some collections (e.g. short forties) have empty English fields; Arabic is still present.
+    """
     n = narrator.strip()
     e = english.strip()
     if n and e:
         return f"{n}\n{e}"
-    return e or n
+    if e or n:
+        return e or n
+    return (arabic or "").strip()

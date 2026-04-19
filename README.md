@@ -75,6 +75,9 @@ For a **single-machine** full build (import + embed + cross + provenance), run `
 
 - **Secrets:** `.env` is gitignored; see `.env.example` for `OPENAI_API_KEY`.
 - **Artifacts:** `data/*.db` and embedding checkpoint glob patterns are gitignored by default.
+- **Embeddings:** Rows with empty English narrator and text still embed using **Arabic** text when present. Very long inputs are truncated before the API call.
+- **Count rows without the `sqlite3` CLI:**  
+  `python -c "import sqlite3; c=sqlite3.connect('data/hadith.db'); print(c.execute('SELECT COUNT(*) FROM hadiths WHERE embedding IS NULL').fetchone()[0])"`
 
 ## License
 

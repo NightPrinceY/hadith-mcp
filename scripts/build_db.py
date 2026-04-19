@@ -100,7 +100,9 @@ def main() -> int:
         ch_map = insert_chapters(conn, chapters)
         insert_hadiths(conn, hadiths, ch_map)
 
-        texts_by_id = {h.id: embedding_input(h.narrator, h.english) for h in hadiths}
+        texts_by_id = {
+            h.id: embedding_input(h.narrator, h.english, arabic=h.arabic) for h in hadiths
+        }
 
         if args.fake_embed:
             print("Filling fake embeddings (3072-d, normalized)...")
