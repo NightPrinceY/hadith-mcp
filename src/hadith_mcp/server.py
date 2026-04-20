@@ -772,16 +772,16 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 mime_type=_HADITH_APP_MIME,
                 meta={
                     "ui": {
-                        # Unique, stable origin identifier for this widget
-                        # template. ChatGPT uses it as the sandbox scoping
-                        # key (the iframe is still served under
-                        # *.web-sandbox.oaiusercontent.com) and as the
-                        # registry identity for app-directory submission.
-                        # It does not need to resolve in DNS — the host
-                        # never fetches it — but we use a real subdomain
-                        # under hadith-mcp.org so it stays memorable and
-                        # namespaced alongside search./api./apex.
-                        "domain": "https://reader.hadith-mcp.org",
+                        # NOTE: we intentionally do NOT set ui.domain here.
+                        # ChatGPT and Claude require incompatible formats
+                        # for that field (ChatGPT wants any https URL;
+                        # Claude requires a sha256-derived subdomain of
+                        # claudemcpcontent.com and errors with "App domain
+                        # configuration is invalid" on anything else). Both
+                        # hosts work correctly when the field is simply
+                        # omitted — Claude auto-generates its sandbox
+                        # identity and ChatGPT just shows a non-blocking
+                        # "widget domain not set" warning in the registry.
                         "csp": {
                             # Self-contained app: CSS, JS, and the ext-apps
                             # SDK are all inlined. No external origins are
