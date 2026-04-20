@@ -56,6 +56,19 @@
   const nextPageBtn = document.getElementById("nextPageBtn");
   const pageText = document.getElementById("pageText");
   const resultTemplate = document.getElementById("resultTemplate");
+  const loadingIndicator = document.getElementById("loadingIndicator");
+
+  function setLoading(isLoading) {
+    if (!loadingIndicator) return;
+    loadingIndicator.hidden = !isLoading;
+    if (isLoading) {
+      // Blank the previous results + pager so the spinner isn't stacked on
+      // top of stale cards from the last query.
+      resultsList.replaceChildren();
+      pagination.hidden = true;
+      statsText.textContent = "Searching…";
+    }
+  }
 
   // ─── Lookup + fetch ──────────────────────────────────────
   function parseLookup(query) {
@@ -316,6 +329,7 @@
   async function submit() {
     state.query = searchInput.value.trim();
     state.page = 1;
+    setLoading(true);
     try {
       await performSearch();
       render();
@@ -323,6 +337,8 @@
       statsText.textContent = String(err);
       resultsList.innerHTML = '<div class="empty">Search failed.</div>';
       pagination.hidden = true;
+    } finally {
+      setLoading(false);
     }
   }
 

@@ -76,7 +76,11 @@
     * { box-sizing: border-box; }
     [hidden] { display: none !important; }
 
-    html, body { height: 100%; }
+    /* IMPORTANT: do NOT set html/body { height: 100% }. MCP app hosts embed
+       us in an iframe that auto-sizes to content via ResizeObserver. A
+       percentage height resolves against an initially-zero-height parent
+       and collapses the whole app to 0 px (this is why Claude rendered
+       blank). Let the document flow set its own height. */
     body {
       margin: 0;
       font-family: var(--font-sans);
@@ -86,21 +90,19 @@
       -webkit-font-smoothing: antialiased;
     }
 
-    .shell {
-      min-height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
+    .shell { display: block; }
 
+    /* The app bar is hidden by default; we only show it in search / empty
+       modes. When show_hadith opens a specific hadith (detail mode) the
+       search form would just be chrome noise. */
     .app-bar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: color-mix(in srgb, var(--clr-surface) 96%, transparent);
+      background: var(--clr-surface);
       border-bottom: 1px solid var(--clr-border);
-      backdrop-filter: blur(8px);
       padding: 10px 14px;
+      display: none;
     }
+    .shell.mode-search .app-bar,
+    .shell.mode-empty  .app-bar { display: block; }
 
     .search-form {
       display: grid;
@@ -146,12 +148,15 @@
     .btn-outline:hover { border-color: var(--clr-accent); color: var(--clr-accent); }
 
     .view {
-      flex: 1;
-      padding: 18px 14px 36px;
+      padding: 14px;
       max-width: 880px;
       width: 100%;
       margin: 0 auto;
     }
+    /* In detail mode we hug the content tightly — the host iframe will
+       autosize to whatever height the card needs, no chrome around it. */
+    .shell.mode-detail .view { padding: 12px 12px 16px; }
+    .shell.mode-detail .result-card.is-detail { margin: 0; }
 
     .section-desc {
       color: var(--clr-text-muted);
@@ -174,6 +179,7 @@
       padding: 24px 18px;
       color: var(--clr-text-muted);
       text-align: center;
+      min-height: 80px;
     }
     .empty code {
       background: var(--clr-bg-alt);
@@ -380,7 +386,7 @@
   </style>
 </head>
 <body>
-  <div class="shell">
+  <div id="shell" class="shell mode-detail">
     <header class="app-bar">
       <form id="searchForm" class="search-form" role="search">
         <input id="q" type="search" placeholder="Search hadith, #id, or bukhari 5678" aria-label="Hadith search" />
@@ -391,7 +397,7 @@
       </form>
     </header>
     <main id="view" class="view">
-      <div class="loading">Loading hadith reader…</div>
+      <div class="loading">Loading hadith…</div>
     </main>
   </div>
 
@@ -440,11 +446,17 @@
       "use strict";
 
       const sdk = window.__hadithMcpSdk;
+      const shell = document.getElementById("shell");
       const view = document.getElementById("view");
       const searchForm = document.getElementById("searchForm");
       const qInput = document.getElementById("q");
       const collSelect = document.getElementById("coll");
       const cardTpl = document.getElementById("cardTpl");
+
+      function setMode(mode) {
+        shell.classList.remove("mode-detail", "mode-search", "mode-empty");
+        shell.classList.add(`mode-${mode}`);
+      }
 
       let app = null;
       let initialData = null;
@@ -635,6 +647,7 @@
       }
 
       function renderEmpty() {
+        setMode("empty");
         view.innerHTML = `
           <div class="empty">
             <p>Search for a hadith above,<br>
@@ -643,6 +656,7 @@
       }
 
       function renderDetail(hadith, crossRefs) {
+        setMode("detail");
         const wrap = document.createElement("div");
         wrap.appendChild(renderCard(hadith, { detail: true }));
         if (crossRefs?.length) {
@@ -670,6 +684,7 @@
       }
 
       function renderSearch(results, meta) {
+        setMode("search");
         const wrap = document.createElement("div");
         if (meta?.query) {
           const h = document.createElement("p");
@@ -825,7 +840,21 @@
 
       instance.ontoolresult = (result) => {
         try {
-          const sc = result?.structuredContent;
+          // Some hosts pass the CallToolResult directly; others wrap it in
+          // a notification object whose payload lives on `.result`. Accept
+          // both shapes and also look inside `result.content[0].text` as a
+          // last resort (matches our text fallback JSON block).
+          const sc =
+            result?.structuredContent ??
+            result?.result?.structuredContent ??
+            (() => {
+              try {
+                const t = result?.content?.find?.((c) => c.type === "text")?.text;
+                return t ? JSON.parse(t) : null;
+              } catch {
+                return null;
+              }
+            })();
           if (!sc || !sc.kind) return;
           initialData = sc;
           renderFromStructured(sc);
@@ -848,22 +877,33 @@
 
       instance.onteardown = async () => ({ state: {} });
 
+      // Hard deadline: if connect() never resolves (e.g. host protocol
+      // mismatch), make sure the iframe still shows a usable empty state
+      // so the user is not staring at a blank tool card.
+      const connectDeadline = setTimeout(() => {
+        if (!app && !initialData) renderEmpty();
+      }, 2500);
+
       (async () => {
         try {
           await instance.connect();
           app = instance;
+          clearTimeout(connectDeadline);
           const hc = instance.getHostContext?.();
           if (hc?.theme && sdk.applyDocumentTheme) sdk.applyDocumentTheme(hc.theme);
         } catch (e) {
+          clearTimeout(connectDeadline);
           view.innerHTML = `<div class="empty">Could not connect to host: ${esc(e.message || e)}</div>`;
           return;
         }
 
-        // Some hosts do not re-fire ontoolresult on remount; show the empty
-        // state as a graceful fallback after a short grace period.
+        // Some hosts deliver the initial tool-result synchronously during
+        // connect(), others fire it a tick later. If nothing arrives within
+        // the grace period, fall back to the interactive empty state so the
+        // app never stays stuck on "Loading…".
         setTimeout(() => {
           if (!initialData) renderEmpty();
-        }, 500);
+        }, 750);
       })();
     })();
   </script>

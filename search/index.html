@@ -69,6 +69,11 @@
         <p id="statsText" class="section-desc">Enter a query to start.</p>
       </section>
 
+      <div id="loadingIndicator" class="loading-indicator" hidden aria-live="polite">
+        <span class="spinner" aria-hidden="true"></span>
+        <span class="loading-text">Searching…</span>
+      </div>
+
       <section id="resultsList" class="result-list" aria-live="polite"></section>
 
       <nav id="pagination" class="pagination" hidden>
