@@ -8,6 +8,7 @@
     || "https://api.hadith-mcp.org";
 
   const CLAMP_OVERFLOW_PX = 4;
+  const THEME_KEY = "hadith-search-theme";
 
   const state = {
     query: "",
@@ -16,6 +17,33 @@
     results: [],
     singleLookup: false,
   };
+
+  // ─── Theme toggle (manual override of prefers-color-scheme) ─
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === "dark" || theme === "light") {
+      root.setAttribute("data-theme", theme);
+    } else {
+      root.removeAttribute("data-theme");
+    }
+  }
+
+  function resolvedTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") return saved;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+
+  function toggleTheme() {
+    const next = resolvedTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  if (savedTheme === "dark" || savedTheme === "light") applyTheme(savedTheme);
 
   const searchInput = document.getElementById("searchInput");
   const searchBtn = document.getElementById("searchBtn");
@@ -97,8 +125,9 @@
   }
 
   function formatSimilarity(sim) {
-    if (typeof sim !== "number" || !Number.isFinite(sim)) return null;
+    if (typeof sim !== "number" || !Number.isFinite(sim) || sim <= 0) return null;
     const pct = Math.round(sim * 100);
+    if (pct <= 0) return null;
     return `${pct}% match`;
   }
 
@@ -163,9 +192,24 @@
     card.querySelector(".chip-num").textContent = `#${item.id_in_book}`;
 
     const chapterEl = card.querySelector(".chip-chapter");
-    if (item.chapter_name_english) {
-      chapterEl.textContent = item.chapter_name_english;
+    const chapterName = (item.chapter_name_english || "").trim();
+    if (chapterName) {
+      chapterEl.textContent = chapterName;
       chapterEl.hidden = false;
+    }
+
+    // DB id + provenance live in the top meta row now.
+    const dbidEl = card.querySelector(".chip-dbid");
+    if (item.id != null) {
+      dbidEl.textContent = `DB ${item.id}`;
+      dbidEl.hidden = false;
+    }
+
+    const provEl = card.querySelector(".chip-prov");
+    const prov = (item.provenance || "").trim();
+    if (prov) {
+      provEl.textContent = prov;
+      provEl.hidden = false;
     }
 
     const simEl = card.querySelector(".chip-sim");
@@ -208,15 +252,6 @@
       const arText = card.querySelector(".arabic-text");
       arText.textContent = item.arabic.trim();
       arBlock.hidden = false;
-    }
-
-    // Footer: DB id + provenance (if set)
-    card.querySelector(".chip-dbid").textContent = `DB ${item.id}`;
-    const prov = (item.provenance || "").trim();
-    if (prov) {
-      const provEl = card.querySelector(".chip-prov");
-      provEl.textContent = prov;
-      provEl.hidden = false;
     }
 
     // Actions
@@ -317,13 +352,22 @@
 
   function bootstrapFromUrl() {
     const params = new URLSearchParams(window.location.search);
+    if (params.get("app") === "1") document.body.classList.add("is-embedded");
+
+    const collection = (params.get("collection") || "").trim().toLowerCase();
+    const number = (params.get("number") || "").trim();
+    if (collection && /^\d+$/.test(number)) {
+      searchInput.value = `${collection} ${number}`;
+      submit();
+      return true;
+    }
     const id = params.get("id");
-    const q = params.get("q");
     if (id && /^\d+$/.test(id.trim())) {
       searchInput.value = `#${id.trim()}`;
       submit();
       return true;
     }
+    const q = params.get("q");
     if (q && q.trim()) {
       searchInput.value = q.trim();
       submit();
@@ -331,6 +375,9 @@
     }
     return false;
   }
+
+  const themeBtn = document.getElementById("themeToggle");
+  themeBtn?.addEventListener("click", toggleTheme);
 
   loadCollections()
     .catch(() => {

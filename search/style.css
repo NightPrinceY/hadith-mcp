@@ -24,27 +24,49 @@
   --shadow-md: 0 4px 16px rgba(44, 36, 24, 0.08);
 }
 
+/* Dark palette shared between @media (auto) and [data-theme="dark"] (manual). */
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --clr-bg: #14110d;
-    --clr-bg-alt: #1d1915;
+    --clr-bg-alt: #241f17;
     --clr-surface: #1f1c17;
-    --clr-surface-hover: #262218;
-    --clr-text: #ebe4d4;
-    --clr-text-muted: #a89c87;
-    --clr-text-faint: #807362;
-    --clr-accent: #4fb68b;
-    --clr-accent-light: #14301f;
-    --clr-accent-dark: #6fd0a5;
-    --clr-border: #332d24;
-    --clr-border-strong: #4a4234;
-    --clr-prov: #e8c888;
+    --clr-surface-hover: #2a2519;
+    --clr-text: #f2ecdb;
+    --clr-text-muted: #c7b99f;
+    --clr-text-faint: #8c7f6a;
+    --clr-accent: #5fc89a;
+    --clr-accent-light: #1a3a27;
+    --clr-accent-dark: #82e0b6;
+    --clr-border: #3a3228;
+    --clr-border-strong: #554a3a;
+    --clr-prov: #f0d294;
     --clr-prov-bg: #3a2e17;
-    --clr-sim: #85c4ef;
-    --clr-sim-bg: #173047;
+    --clr-sim: #9bd2fa;
+    --clr-sim-bg: #1c3a55;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
     --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.5);
   }
+}
+
+:root[data-theme="dark"] {
+  --clr-bg: #14110d;
+  --clr-bg-alt: #241f17;
+  --clr-surface: #1f1c17;
+  --clr-surface-hover: #2a2519;
+  --clr-text: #f2ecdb;
+  --clr-text-muted: #c7b99f;
+  --clr-text-faint: #8c7f6a;
+  --clr-accent: #5fc89a;
+  --clr-accent-light: #1a3a27;
+  --clr-accent-dark: #82e0b6;
+  --clr-border: #3a3228;
+  --clr-border-strong: #554a3a;
+  --clr-prov: #f0d294;
+  --clr-prov-bg: #3a2e17;
+  --clr-sim: #9bd2fa;
+  --clr-sim-bg: #1c3a55;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.5);
 }
 
 * { box-sizing: border-box; }
@@ -78,6 +100,12 @@ body {
   align-items: center;
 }
 
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
 .nav-brand {
   color: var(--clr-text);
   text-decoration: none;
@@ -88,6 +116,54 @@ body {
   color: var(--clr-text-muted);
   text-decoration: none;
 }
+
+.nav-link:hover {
+  color: var(--clr-accent);
+}
+
+/* ─── Theme toggle (sun/moon) ─────────────────────────── */
+
+.theme-toggle {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px solid var(--clr-border);
+  border-radius: 999px;
+  color: var(--clr-text-muted);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.theme-toggle:hover {
+  background: var(--clr-bg-alt);
+  border-color: var(--clr-border-strong);
+  color: var(--clr-accent);
+}
+
+.theme-toggle:focus-visible {
+  outline: none;
+  border-color: var(--clr-accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-accent) 25%, transparent);
+}
+
+/* Show sun in dark mode (so clicking brings light), moon in light mode. */
+.theme-toggle .icon-sun { display: none; }
+.theme-toggle .icon-moon { display: block; }
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .theme-toggle .icon-sun { display: block; }
+  :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
+}
+
+:root[data-theme="dark"] .theme-toggle .icon-sun { display: block; }
+:root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+
+:root[data-theme="light"] .theme-toggle .icon-sun { display: none; }
+:root[data-theme="light"] .theme-toggle .icon-moon { display: block; }
 
 .hero {
   background: linear-gradient(180deg, var(--clr-bg) 0%, var(--clr-bg-alt) 100%);
@@ -421,18 +497,6 @@ input:focus, select:focus {
   letter-spacing: 0.005em;
 }
 
-/* ─── Footer ──────────────────────────────────────────── */
-
-.result-footer {
-  margin-top: 14px;
-  padding-top: 12px;
-  border-top: 1px solid var(--clr-border);
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
-}
-
 /* ─── Single-result detail mode ───────────────────────── */
 
 .result-card.is-detail {
@@ -499,3 +563,10 @@ input:focus, select:focus {
   .arabic-text { font-size: 1.25rem; line-height: 1.9; }
   .chip-chapter { max-width: 180px; }
 }
+
+/* ─── Embedded mode (?app=1) — trims chrome for iframe ───
+   Used by the MCP show_hadith app wrapper. */
+body.is-embedded .top-nav,
+body.is-embedded .hero { display: none; }
+body.is-embedded .section { padding: 16px 0 32px; }
+body.is-embedded { background: var(--clr-bg); }

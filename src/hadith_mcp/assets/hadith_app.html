@@ -4,813 +4,171 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Hadith Reader</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --clr-bg: #faf8f5;
-      --clr-bg-alt: #f0ece4;
-      --clr-surface: #ffffff;
-      --clr-text: #2c2418;
-      --clr-text-muted: #6b5e4e;
-      --clr-text-faint: #9a8f7e;
-      --clr-accent: #1a6b4a;
-      --clr-accent-light: #e6f3ed;
-      --clr-accent-dark: #0f4a32;
-      --clr-border: #d9d0c3;
-      --clr-border-strong: #c2b7a5;
-      --clr-prov: #7c5a22;
-      --clr-prov-bg: #f3e8d0;
-      --clr-sim: #1d5f8a;
-      --clr-sim-bg: #e4eff7;
-      --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-      --font-arabic: "Amiri", "Noto Naskh Arabic", "Scheherazade New", "Traditional Arabic", Georgia, serif;
-      --radius: 12px;
-      --radius-sm: 8px;
-      --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.04);
-      --shadow-md: 0 4px 16px rgba(44, 36, 24, 0.08);
+      --bg: #14110d;
+      --surface: #1f1c17;
+      --text: #f2ecdb;
+      --muted: #a89c87;
+      --accent: #5fc89a;
+      --border: #3a3228;
     }
-    @media (prefers-color-scheme: dark) {
+    @media (prefers-color-scheme: light) {
       :root {
-        --clr-bg: #14110d;
-        --clr-bg-alt: #1d1915;
-        --clr-surface: #1f1c17;
-        --clr-text: #ebe4d4;
-        --clr-text-muted: #a89c87;
-        --clr-text-faint: #807362;
-        --clr-accent: #4fb68b;
-        --clr-accent-light: #14301f;
-        --clr-accent-dark: #6fd0a5;
-        --clr-border: #332d24;
-        --clr-border-strong: #4a4234;
-        --clr-prov: #e8c888;
-        --clr-prov-bg: #3a2e17;
-        --clr-sim: #85c4ef;
-        --clr-sim-bg: #173047;
-        --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-        --shadow-md: 0 6px 24px rgba(0, 0, 0, 0.5);
+        --bg: #faf8f5;
+        --surface: #ffffff;
+        --text: #2c2418;
+        --muted: #6b5e4e;
+        --accent: #1a6b4a;
+        --border: #d9d0c3;
       }
     }
-
-    * { box-sizing: border-box; }
-    html, body { height: 100%; }
-    body {
-      margin: 0;
-      font-family: var(--font-sans);
-      color: var(--clr-text);
-      background: var(--clr-bg);
-      line-height: 1.7;
-      -webkit-font-smoothing: antialiased;
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, sans-serif; }
+    .shell { position: fixed; inset: 0; display: flex; flex-direction: column; }
+    .topbar {
+      display: flex; align-items: center; gap: 10px;
+      padding: 8px 14px;
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      font-size: 0.88rem;
     }
-
-    .shell {
-      min-height: 100%;
-      display: flex;
-      flex-direction: column;
+    .topbar .title { font-weight: 600; color: var(--text); flex: 1; }
+    .topbar .status { color: var(--muted); font-size: 0.8rem; }
+    .topbar a {
+      color: var(--accent); text-decoration: none; font-weight: 500;
+      display: inline-flex; align-items: center; gap: 4px;
     }
-
-    .app-bar {
-      position: sticky;
-      top: 0;
-      z-index: 10;
-      background: color-mix(in srgb, var(--clr-surface) 96%, transparent);
-      border-bottom: 1px solid var(--clr-border);
-      backdrop-filter: blur(8px);
-      padding: 10px 14px;
+    .topbar a:hover { text-decoration: underline; }
+    .frame-wrap { flex: 1; position: relative; background: var(--bg); }
+    iframe {
+      position: absolute; inset: 0;
+      width: 100%; height: 100%; border: 0;
+      background: var(--bg);
     }
-
-    .search-form {
-      display: grid;
-      grid-template-columns: 1fr auto auto;
-      gap: 8px;
-      max-width: 860px;
-      margin: 0 auto;
-      align-items: center;
+    .fallback {
+      position: absolute; inset: 0;
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      gap: 10px; padding: 24px; text-align: center;
+      background: var(--bg); color: var(--muted);
+      opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
     }
-
-    input, select, button {
-      font: inherit;
-    }
-
-    input, select {
-      border: 1px solid var(--clr-border);
-      border-radius: var(--radius-sm);
-      padding: 9px 11px;
-      background: var(--clr-surface);
-      color: var(--clr-text);
-      min-width: 0;
-    }
-
-    input:focus, select:focus {
-      outline: none;
-      border-color: var(--clr-accent);
-      box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-accent) 20%, transparent);
-    }
-
-    .btn {
-      border-radius: var(--radius-sm);
-      border: 1px solid transparent;
-      padding: 9px 14px;
-      cursor: pointer;
-      font-weight: 500;
-      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
-    }
-
-    .btn-primary { background: var(--clr-accent); color: #fff; }
-    .btn-primary:hover { background: var(--clr-accent-dark); }
-
-    .view {
-      flex: 1;
-      padding: 20px 14px 40px;
-      max-width: 860px;
-      width: 100%;
-      margin: 0 auto;
-    }
-
-    .section-desc {
-      color: var(--clr-text-muted);
-      margin: 0 0 14px;
-      font-size: 0.92rem;
-    }
-
-    .section-heading {
-      margin: 28px 0 12px;
-      font-size: 0.95rem;
-      font-weight: 600;
-      color: var(--clr-text-muted);
-      letter-spacing: 0.02em;
-      text-transform: uppercase;
-    }
-
-    .loading, .empty {
-      border: 1px dashed var(--clr-border);
-      border-radius: var(--radius);
-      padding: 28px 18px;
-      color: var(--clr-text-muted);
-      text-align: center;
-    }
-
-    .empty code {
-      background: var(--clr-bg-alt);
-      padding: 2px 6px;
-      border-radius: 4px;
-      font-size: 0.9em;
-    }
-
-    /* ─── Result card ─────────────────────────────────────── */
-
-    .result-list { display: grid; gap: 14px; }
-
-    .result-card {
-      position: relative;
-      background: var(--clr-surface);
-      border: 1px solid var(--clr-border);
-      border-radius: var(--radius);
-      padding: 16px 18px;
-      box-shadow: var(--shadow-sm);
-      transition: box-shadow 0.18s ease, border-color 0.18s ease;
-    }
-    .result-card:hover {
-      border-color: var(--clr-border-strong);
-      box-shadow: var(--shadow-md);
-    }
-
-    .result-head {
-      display: flex;
-      align-items: flex-start;
-      justify-content: space-between;
-      gap: 12px;
-      margin-bottom: 8px;
-    }
-
-    .result-meta {
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-      flex: 1;
-      min-width: 0;
-    }
-
-    .chip {
-      display: inline-flex;
-      align-items: center;
-      gap: 4px;
-      background: var(--clr-bg-alt);
-      color: var(--clr-text-muted);
-      border-radius: 999px;
-      padding: 3px 10px;
-      font-size: 0.76rem;
-      font-weight: 500;
-      line-height: 1.4;
-      white-space: nowrap;
-    }
-    .chip-coll { background: var(--clr-accent-light); color: var(--clr-accent); font-weight: 600; }
-    .chip-num { background: transparent; color: var(--clr-text); padding: 3px 4px; font-weight: 600; }
-    .chip-chapter {
-      background: transparent;
-      color: var(--clr-text-faint);
-      font-style: italic;
-      font-weight: 400;
-      max-width: 260px;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .chip-chapter::before {
-      content: "·";
-      margin-right: 6px;
-      color: var(--clr-text-faint);
-      font-style: normal;
-    }
-    .chip-sim {
-      background: var(--clr-sim-bg);
-      color: var(--clr-sim);
-      font-variant-numeric: tabular-nums;
-      font-weight: 600;
-      margin-left: auto;
-    }
-    .chip-dbid { background: var(--clr-bg-alt); color: var(--clr-text-faint); font-size: 0.7rem; }
-    .chip-prov {
-      background: var(--clr-prov-bg);
-      color: var(--clr-prov);
-      font-weight: 500;
-      text-transform: lowercase;
-    }
-
-    .result-actions { display: flex; gap: 2px; flex-shrink: 0; }
-
-    .icon-btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 30px;
-      height: 30px;
-      border: none;
-      border-radius: var(--radius-sm);
-      background: transparent;
-      color: var(--clr-text-muted);
-      cursor: pointer;
-      transition: background 0.15s ease, color 0.15s ease;
-      text-decoration: none;
-      font-size: 14px;
-    }
-    .icon-btn:hover { background: var(--clr-bg-alt); color: var(--clr-accent); }
-    .icon-btn.is-copied { color: var(--clr-accent); background: var(--clr-accent-light); }
-
-    .result-narrator {
-      margin: 0 0 6px;
-      color: var(--clr-accent);
-      font-style: italic;
-      font-size: 0.9rem;
-      font-weight: 500;
-    }
-
-    .result-body { position: relative; margin: 0; }
-
-    .english-text {
-      color: var(--clr-text);
-      font-size: 0.98rem;
-      line-height: 1.7;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-    .english-text.is-clamped {
-      display: -webkit-box;
-      -webkit-line-clamp: 6;
-      -webkit-box-orient: vertical;
-      overflow: hidden;
-      mask-image: linear-gradient(180deg, #000 70%, transparent);
-      -webkit-mask-image: linear-gradient(180deg, #000 70%, transparent);
-    }
-
-    .expand-btn {
+    .fallback.visible { opacity: 1; pointer-events: auto; }
+    .fallback .msg { max-width: 420px; line-height: 1.6; }
+    .fallback a.open-btn {
       display: inline-block;
-      margin-top: 6px;
-      padding: 4px 0;
-      border: none;
-      background: transparent;
-      color: var(--clr-accent);
-      font-weight: 600;
-      font-size: 0.85rem;
-      cursor: pointer;
-    }
-    .expand-btn:hover { color: var(--clr-accent-dark); }
-
-    .arabic-block {
-      margin-top: 14px;
-      padding: 12px 14px;
-      background: var(--clr-bg-alt);
-      border-radius: var(--radius-sm);
-      border-right: 3px solid var(--clr-accent);
-    }
-    .arabic-text {
-      margin: 0;
-      font-family: var(--font-arabic);
-      font-size: 1.35rem;
-      line-height: 2;
-      text-align: right;
-      direction: rtl;
-      color: var(--clr-text);
-    }
-
-    .result-footer {
-      margin-top: 12px;
-      padding-top: 10px;
-      border-top: 1px solid var(--clr-border);
-      display: flex;
-      flex-wrap: wrap;
-      align-items: center;
-      gap: 6px;
-    }
-
-    .result-card.is-detail { padding: 22px 24px; }
-    .result-card.is-detail .english-text { font-size: 1.02rem; }
-    .result-card.is-detail .arabic-text { font-size: 1.5rem; }
-
-    .toast {
-      position: fixed;
-      bottom: 18px;
-      left: 50%;
-      transform: translateX(-50%) translateY(10px);
-      background: var(--clr-text);
-      color: var(--clr-bg);
-      padding: 8px 16px;
+      padding: 10px 18px;
       border-radius: 999px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      box-shadow: var(--shadow-md);
-      opacity: 0;
-      pointer-events: none;
-      transition: opacity 0.2s ease, transform 0.2s ease;
-      z-index: 100;
+      background: var(--accent);
+      color: var(--bg);
+      text-decoration: none;
+      font-weight: 600;
     }
-    .toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
-
-    @media (max-width: 640px) {
-      .search-form { grid-template-columns: 1fr; }
-      .result-card { padding: 14px; }
-      .arabic-text { font-size: 1.2rem; line-height: 1.9; }
-      .chip-chapter { max-width: 160px; }
+    @media (max-width: 560px) {
+      .topbar { padding: 6px 10px; font-size: 0.8rem; }
     }
   </style>
 </head>
 <body>
   <div class="shell">
-    <header class="app-bar">
-      <form id="searchForm" class="search-form" role="search">
-        <input id="q" type="search" placeholder="Search hadith or enter #id / bukhari 5678" aria-label="Hadith search" />
-        <select id="coll" aria-label="Collection filter">
-          <option value="">All collections</option>
-        </select>
-        <button type="submit" class="btn btn-primary">Search</button>
-      </form>
-    </header>
-    <main id="view" class="view">
-      <div class="loading">Loading hadith reader…</div>
-    </main>
+    <div class="topbar" role="banner">
+      <span class="title">Hadith Reader</span>
+      <span id="status" class="status"></span>
+      <a id="openBtn" target="_blank" rel="noopener" href="https://search.hadith-mcp.org/">
+        Open in new tab ↗
+      </a>
+    </div>
+    <div class="frame-wrap">
+      <iframe
+        id="frame"
+        title="Hadith search"
+        referrerpolicy="no-referrer"
+        allow="clipboard-write"
+        src="https://search.hadith-mcp.org/?app=1"
+      ></iframe>
+      <div id="fallback" class="fallback" aria-hidden="true">
+        <p class="msg">
+          The embedded reader could not load inside this host.<br>
+          Open it in a new tab to browse the results.
+        </p>
+        <a id="fallbackOpen" class="open-btn" target="_blank" rel="noopener"
+          href="https://search.hadith-mcp.org/">Open Hadith Search</a>
+      </div>
+    </div>
   </div>
 
-  <template id="cardTpl">
-    <article class="result-card">
-      <header class="result-head">
-        <div class="result-meta">
-          <span class="chip chip-coll"></span>
-          <span class="chip chip-num"></span>
-          <span class="chip chip-chapter" hidden></span>
-          <span class="chip chip-sim" hidden></span>
-        </div>
-        <div class="result-actions" role="group" aria-label="Hadith actions">
-          <button class="icon-btn copy-link-btn" type="button" title="Copy share link" aria-label="Copy share link">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/><path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/></svg>
-          </button>
-          <button class="icon-btn copy-text-btn" type="button" title="Copy hadith text" aria-label="Copy hadith text">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          </button>
-          <a class="icon-btn open-link" target="_blank" rel="noopener" title="Open in hadith search" aria-label="Open in hadith search">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          </a>
-        </div>
-      </header>
-      <p class="result-narrator" hidden></p>
-      <div class="result-body">
-        <div class="english-text"></div>
-        <button class="expand-btn" type="button" hidden>Show more</button>
-      </div>
-      <div class="arabic-block" hidden>
-        <p class="arabic-text" dir="rtl" lang="ar"></p>
-      </div>
-      <footer class="result-footer">
-        <span class="chip chip-dbid"></span>
-        <span class="chip chip-prov" hidden></span>
-      </footer>
-    </article>
-  </template>
+  <script>
+    (() => {
+      "use strict";
 
-  <script type="module">
-    import {
-      App,
-      applyDocumentTheme,
-      applyHostStyleVariables,
-      applyHostFonts,
-    } from "https://esm.sh/@modelcontextprotocol/ext-apps";
+      const frame = document.getElementById("frame");
+      const openBtn = document.getElementById("openBtn");
+      const fallback = document.getElementById("fallback");
+      const fallbackOpen = document.getElementById("fallbackOpen");
+      const statusEl = document.getElementById("status");
 
-    const view = document.getElementById("view");
-    const searchForm = document.getElementById("searchForm");
-    const qInput = document.getElementById("q");
-    const collSelect = document.getElementById("coll");
-    const cardTpl = document.getElementById("cardTpl");
+      let base = "https://search.hadith-mcp.org";
+      let hasRenderedFromSdk = false;
 
-    let app = null;
-    let initialData = null;
-    let searchAppBase = "https://search.hadith-mcp.org";
-    let collectionsLoaded = false;
-    let interactive = true;
-
-    const esc = (s) => String(s ?? "")
-      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-
-    function hadithUrl(id) { return `${searchAppBase}/?id=${id}`; }
-
-    function formatNarrator(raw) {
-      if (!raw) return "";
-      const s = String(raw).trim();
-      if (!s) return "";
-      if (/^(narrated|reported|it was narrated)/i.test(s)) {
-        return s.endsWith(":") ? s : `${s}:`;
-      }
-      return `Narrated ${s}:`;
-    }
-
-    function formatSimilarity(sim) {
-      if (typeof sim !== "number" || !Number.isFinite(sim)) return null;
-      const pct = Math.round(sim * 100);
-      return `${pct}% match`;
-    }
-
-    function englishTextOf(item) {
-      return item.english || item.english_excerpt || "";
-    }
-
-    async function copyToClipboard(text, btn) {
-      try {
-        await navigator.clipboard.writeText(text);
-        if (btn) {
-          btn.classList.add("is-copied");
-          setTimeout(() => btn.classList.remove("is-copied"), 800);
+      function buildUrl(data) {
+        const u = new URL(base);
+        u.searchParams.set("app", "1");
+        if (data?.kind === "detail" && data.hadith?.id != null) {
+          u.searchParams.set("id", String(data.hadith.id));
+        } else if (data?.kind === "search" && data.query) {
+          u.searchParams.set("q", data.query);
+          if (data.collection_filter) {
+            u.searchParams.set("collection", data.collection_filter);
+          }
         }
-        showToast("Copied");
-      } catch {
-        showToast("Copy failed");
+        return u.toString();
       }
-    }
 
-    let toastTimer = null;
-    function showToast(msg) {
-      let el = document.querySelector(".toast");
-      if (!el) {
-        el = document.createElement("div");
-        el.className = "toast";
-        document.body.appendChild(el);
+      function applyUrl(url) {
+        if (!url) return;
+        if (frame.src !== url) frame.src = url;
+        openBtn.href = url;
+        fallbackOpen.href = url;
       }
-      el.textContent = msg;
-      requestAnimationFrame(() => el.classList.add("is-visible"));
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => el.classList.remove("is-visible"), 1200);
-    }
 
-    function setupClamp(textEl, expandBtn, expanded) {
-      if (expanded) {
-        textEl.classList.remove("is-clamped");
-        expandBtn.hidden = true;
-        return;
-      }
-      textEl.classList.add("is-clamped");
-      requestAnimationFrame(() => {
-        const overflow = textEl.scrollHeight - textEl.clientHeight > 4;
-        if (overflow) {
-          expandBtn.hidden = false;
-          expandBtn.textContent = "Show more";
-        } else {
-          textEl.classList.remove("is-clamped");
-          expandBtn.hidden = true;
+      // Detect obvious iframe failures (e.g. host CSP stripping cross-origin
+      // frames). If the iframe never fires a load event, show the fallback.
+      let loaded = false;
+      frame.addEventListener("load", () => { loaded = true; fallback.classList.remove("visible"); });
+      setTimeout(() => {
+        if (!loaded) {
+          fallback.classList.add("visible");
+          statusEl.textContent = "Embed blocked";
         }
-      });
-    }
+      }, 2500);
 
-    function renderCard(item, { detail = false, onOpen = null } = {}) {
-      const card = cardTpl.content.firstElementChild.cloneNode(true);
-      if (detail) card.classList.add("is-detail");
-
-      const collName = item.collection_name_english || item.collection_slug || "";
-      card.querySelector(".chip-coll").textContent = collName;
-      card.querySelector(".chip-num").textContent = `#${item.id_in_book}`;
-
-      if (item.chapter_name_english) {
-        const el = card.querySelector(".chip-chapter");
-        el.textContent = item.chapter_name_english;
-        el.hidden = false;
-      }
-
-      const simLabel = formatSimilarity(item.similarity);
-      if (simLabel) {
-        const el = card.querySelector(".chip-sim");
-        el.textContent = simLabel;
-        el.hidden = false;
-      }
-
-      const narr = formatNarrator(item.narrator);
-      if (narr) {
-        const el = card.querySelector(".result-narrator");
-        el.textContent = narr;
-        el.hidden = false;
-      }
-
-      const textEl = card.querySelector(".english-text");
-      const expandBtn = card.querySelector(".expand-btn");
-      textEl.textContent = englishTextOf(item);
-
-      let expanded = detail;
-      setupClamp(textEl, expandBtn, expanded);
-      expandBtn.addEventListener("click", () => {
-        expanded = !expanded;
-        if (expanded) {
-          textEl.classList.remove("is-clamped");
-          expandBtn.textContent = "Show less";
-        } else {
-          textEl.classList.add("is-clamped");
-          expandBtn.textContent = "Show more";
-        }
-      });
-
-      if (item.arabic && String(item.arabic).trim()) {
-        const block = card.querySelector(".arabic-block");
-        card.querySelector(".arabic-text").textContent = String(item.arabic).trim();
-        block.hidden = false;
-      }
-
-      const idForUrl = item.id ?? item.matched_hadith_id;
-      if (idForUrl != null) {
-        card.querySelector(".chip-dbid").textContent = `DB ${idForUrl}`;
-      } else {
-        card.querySelector(".chip-dbid").hidden = true;
-      }
-
-      const prov = (item.provenance || "").trim();
-      if (prov) {
-        const el = card.querySelector(".chip-prov");
-        el.textContent = prov;
-        el.hidden = false;
-      }
-
-      const openLink = card.querySelector(".open-link");
-      openLink.href = item.url || (idForUrl != null ? hadithUrl(idForUrl) : "#");
-
-      card.querySelector(".copy-link-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        copyToClipboard(item.url || hadithUrl(idForUrl), e.currentTarget);
-      });
-      card.querySelector(".copy-text-btn").addEventListener("click", (e) => {
-        e.stopPropagation();
-        const body = [
-          `${collName} #${item.id_in_book}`,
-          narr,
-          "",
-          englishTextOf(item),
-          item.arabic ? `\n${String(item.arabic).trim()}` : "",
-          `\n${item.url || hadithUrl(idForUrl)}`,
-        ].filter(Boolean).join("\n");
-        copyToClipboard(body, e.currentTarget);
-      });
-
-      if (onOpen && idForUrl != null) {
-        card.style.cursor = "pointer";
-        card.addEventListener("click", (e) => {
-          if (e.target.closest(".icon-btn, .expand-btn, a")) return;
-          onOpen(idForUrl);
-        });
-      }
-
-      return card;
-    }
-
-    function populateCollections(colls) {
-      if (collectionsLoaded || !colls?.length) return;
-      for (const c of colls) {
-        const o = document.createElement("option");
-        o.value = c.slug;
-        o.textContent = c.name_english;
-        collSelect.appendChild(o);
-      }
-      collectionsLoaded = true;
-    }
-
-    function renderEmpty() {
-      view.innerHTML = `
-        <div class="empty">
-          <p>Search for a hadith above,<br>
-          or enter a DB id like <code>#6074</code> or a reference like <code>bukhari 5678</code>.</p>
-        </div>`;
-    }
-
-    function renderDetail(hadith, crossRefs) {
-      const wrap = document.createElement("div");
-      wrap.appendChild(renderCard(hadith, { detail: true }));
-      if (crossRefs?.length) {
-        const h = document.createElement("h3");
-        h.className = "section-heading";
-        h.textContent = `Cross-references (${crossRefs.length})`;
-        wrap.appendChild(h);
-        const list = document.createElement("div");
-        list.className = "result-list";
-        for (const m of crossRefs) {
-          const item = {
-            id: m.matched_hadith_id,
-            id_in_book: m.id_in_book,
-            collection_slug: m.collection_slug,
-            collection_name_english: m.collection_slug,
-            english_excerpt: m.english_excerpt,
-            similarity: m.similarity,
-            url: m.url,
+      // Try the MCP Apps SDK for richer integration. Optional — a plain iframe
+      // to the default search URL already works without it.
+      (async () => {
+        try {
+          const mod = await import("https://esm.sh/@modelcontextprotocol/ext-apps");
+          const app = new mod.App({ name: "Hadith Reader", version: "0.2.0" });
+          app.ontoolresult = (result) => {
+            const sc = result?.structuredContent;
+            if (!sc) return;
+            if (sc.search_app_url) base = sc.search_app_url;
+            hasRenderedFromSdk = true;
+            applyUrl(buildUrl(sc));
           };
-          list.appendChild(renderCard(item, { onOpen: openHadith }));
+          app.onhostcontextchanged = () => {};
+          app.onteardown = async () => ({ state: {} });
+          await app.connect();
+          statusEl.textContent = "Connected";
+        } catch (err) {
+          // SDK unavailable — the plain iframe fallback already handles this.
+          statusEl.textContent = "";
+          if (typeof console !== "undefined") {
+            console.debug("[hadith-reader] SDK not available:", err?.message || err);
+          }
         }
-        wrap.appendChild(list);
-      }
-      view.replaceChildren(wrap);
-    }
-
-    function renderSearch(results, meta) {
-      const wrap = document.createElement("div");
-      if (meta?.query) {
-        const h = document.createElement("p");
-        h.className = "section-desc";
-        const note = meta.note ? ` · ${esc(meta.note)}` : "";
-        h.innerHTML = `<strong>${esc(meta.query)}</strong> — ${results.length} result(s)${note}`;
-        wrap.appendChild(h);
-      }
-      if (!results.length) {
-        const empty = document.createElement("div");
-        empty.className = "empty";
-        empty.textContent = "No results.";
-        wrap.appendChild(empty);
-      } else {
-        const list = document.createElement("div");
-        list.className = "result-list";
-        for (const item of results) list.appendChild(renderCard(item, { onOpen: openHadith }));
-        wrap.appendChild(list);
-      }
-      view.replaceChildren(wrap);
-    }
-
-    function renderFromStructured(data) {
-      if (data.search_app_url) searchAppBase = data.search_app_url;
-      if (typeof data.interactive === "boolean") interactive = data.interactive;
-      populateCollections(data.collections);
-      if (data.kind === "detail" && data.hadith) {
-        renderDetail(data.hadith, data.cross_references);
-      } else if (data.kind === "search") {
-        qInput.value = data.query || "";
-        if (data.collection_filter) collSelect.value = data.collection_filter;
-        renderSearch(data.search_results || [], {
-          query: data.query,
-          note: data.search_note,
-        });
-      } else {
-        renderEmpty();
-      }
-    }
-
-    function parseToolResultJson(result) {
-      const block = result.content?.find((c) => c.type === "text");
-      if (!block?.text) return null;
-      try { return JSON.parse(block.text); }
-      catch { return null; }
-    }
-
-    async function openHadith(hadithId) {
-      if (!app) return;
-      view.innerHTML = '<div class="loading">Loading…</div>';
-      try {
-        const result = await app.callServerTool({
-          name: "fetch_hadith",
-          arguments: { hadith_id: hadithId, include_cross_references: true },
-        });
-        const parsed = parseToolResultJson(result);
-        if (!parsed?.hadith) {
-          view.innerHTML = '<div class="empty">Hadith not found.</div>';
-          return;
-        }
-        const crossRefs = (parsed.cross_references || {})[String(parsed.hadith.id)] || [];
-        renderDetail(parsed.hadith, crossRefs);
-      } catch (e) {
-        view.innerHTML = `<div class="empty">Lookup failed: ${esc(e.message)}</div>`;
-      }
-    }
-
-    async function runSearch(query, collection) {
-      if (!app) return;
-      view.innerHTML = '<div class="loading">Searching…</div>';
-      try {
-        const result = await app.callServerTool({
-          name: "search_hadith",
-          arguments: {
-            query,
-            collection: collection || null,
-            limit: 30,
-            mode: "semantic",
-          },
-        });
-        const parsed = parseToolResultJson(result) || { results: [] };
-        renderSearch(parsed.results || [], { query, note: parsed.note });
-      } catch (e) {
-        view.innerHTML = `<div class="empty">Search failed: ${esc(e.message)}</div>`;
-      }
-    }
-
-    function parseQueryLookup(q) {
-      q = q.trim();
-      const bare = q.match(/^#?(\d+)$/);
-      if (bare) return { hadith_id: Number.parseInt(bare[1], 10) };
-      const coll = q.match(/^([a-zA-Z_]+)\s*#?\s*(\d+)$/);
-      if (coll) return {
-        collection: coll[1].toLowerCase(),
-        hadith_number: Number.parseInt(coll[2], 10),
-      };
-      return null;
-    }
-
-    async function lookupByCollection(collection, hadithNumber) {
-      if (!app) return;
-      view.innerHTML = '<div class="loading">Loading…</div>';
-      try {
-        const result = await app.callServerTool({
-          name: "fetch_hadith",
-          arguments: { collection, hadith_number: hadithNumber, include_cross_references: true },
-        });
-        const parsed = parseToolResultJson(result);
-        if (!parsed?.hadith) {
-          view.innerHTML = '<div class="empty">Hadith not found.</div>';
-          return;
-        }
-        const crossRefs = (parsed.cross_references || {})[String(parsed.hadith.id)] || [];
-        renderDetail(parsed.hadith, crossRefs);
-      } catch (e) {
-        view.innerHTML = `<div class="empty">Lookup failed: ${esc(e.message)}</div>`;
-      }
-    }
-
-    searchForm.addEventListener("submit", (e) => {
-      e.preventDefault();
-      if (!interactive) return;
-      const q = qInput.value.trim();
-      if (!q) return;
-      const lookup = parseQueryLookup(q);
-      if (lookup?.hadith_id != null) {
-        openHadith(lookup.hadith_id);
-      } else if (lookup?.collection && lookup?.hadith_number != null) {
-        lookupByCollection(lookup.collection, lookup.hadith_number);
-      } else {
-        runSearch(q, collSelect.value);
-      }
-    });
-
-    // ─── MCP App bootstrap ───────────────────────────────
-    const instance = new App({ name: "Hadith Reader", version: "0.1.0" });
-
-    instance.ontoolresult = (result) => {
-      try {
-        const sc = result.structuredContent;
-        if (!sc || !sc.kind) return;
-        initialData = sc;
-        renderFromStructured(sc);
-      } catch (e) {
-        view.innerHTML = `<div class="empty">Render failed: ${esc(e.message)}</div>`;
-      }
-    };
-
-    instance.onhostcontextchanged = (ctx) => {
-      try {
-        if (ctx?.theme) applyDocumentTheme(ctx.theme);
-        if (ctx?.styles?.variables) applyHostStyleVariables(ctx.styles.variables);
-        if (ctx?.styles?.css?.fonts) applyHostFonts(ctx.styles.css.fonts);
-      } catch {}
-    };
-
-    instance.onteardown = async () => ({ state: {} });
-
-    try {
-      await instance.connect();
-      app = instance;
-      const hc = instance.getHostContext?.();
-      if (hc?.theme) applyDocumentTheme(hc.theme);
-    } catch (e) {
-      console.warn("[hadith-reader] MCP App connect failed:", e);
-    }
-
-    // Fallback: some hosts do not deliver ontoolresult on re-mount. After a
-    // brief grace period, show empty state so the user can search manually.
-    setTimeout(() => { if (!initialData) renderEmpty(); }, 500);
+      })();
+    })();
   </script>
 </body>
 </html>

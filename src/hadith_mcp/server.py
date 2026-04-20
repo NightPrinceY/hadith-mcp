@@ -730,6 +730,8 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                     "ui": {
                         "csp": {
                             "resourceDomains": [
+                                "https://search.hadith-mcp.org",
+                                "https://api.hadith-mcp.org",
                                 "https://esm.sh",
                                 "https://fonts.googleapis.com",
                                 "https://fonts.gstatic.com",
