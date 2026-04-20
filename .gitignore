@@ -8,6 +8,7 @@ build/
 
 # Private hosting runbook (copy to server manually; not published)
 HOSTING.local.md
+SEARCH_SETUP.local.md
 data/*.db
 !data/hadith.db
 data/*.db-journal
@@ -21,6 +22,5 @@ data/embeddings_*.jsonl
 # Large vendored / reference trees (do not push)
 quran-mcp-master/
 hadith-json-main/
+assim/
 
-# Landing page (local dev only)
-site/

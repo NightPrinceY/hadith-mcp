@@ -31,6 +31,7 @@ from hadith_mcp.store import HadithStore
 logger = logging.getLogger("hadith_mcp.server")
 
 _MAX_HADITH_RANGE = 25
+_SEARCH_APP_BASE_URL = os.environ.get("HADITH_SEARCH_APP_URL", "https://search.hadith-mcp.org").strip().rstrip("/")
 
 
 def _search_client_key(ctx: Context) -> str:
@@ -54,6 +55,22 @@ def _session_key(ctx: Context) -> str:
     rc = ctx.request_context
     sess = getattr(rc, "session", None) if rc is not None else None
     return hex(id(sess)) if sess is not None else "default"
+
+
+def _hadith_url(hadith_id: int) -> str:
+    return f"{_SEARCH_APP_BASE_URL}/?id={hadith_id}"
+
+
+def _add_hadith_url(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    out["url"] = _hadith_url(int(row["id"]))
+    return out
+
+
+def _add_match_url(row: dict[str, Any]) -> dict[str, Any]:
+    out = dict(row)
+    out["url"] = _hadith_url(int(row["matched_hadith_id"]))
+    return out
 
 
 def _parse_hadith_span(
@@ -133,6 +150,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             "Hadith corpus in SQLite. Call fetch_grounding_rules first when citing hadith. "
             "Never quote hadith from memory: use fetch_hadith or search_hadith. "
             "Cite with collection slug/name and id_in_book (hadith number in book). "
+            "When tool responses include a hadith 'url' field, include that link in user-facing citations for quick verification. "
             "search_hadith defaults to semantic (embeddings); use mode='keyword' for substring search. "
             "Semantic search falls back to keyword on rate limits, quota/billing errors, or model/index mismatch. "
             "Cross-references are algorithmic, not scholarly isnad proof."
@@ -220,6 +238,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                     "collection_slug": r["collection_slug"],
                     "id_in_book": r["id_in_book"],
                     "english_excerpt": (r.get("english") or "")[:280],
+                    "url": _hadith_url(hid),
                 }
             )
         if cache is not None:
@@ -244,6 +263,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 "collection_slug": r["collection_slug"],
                 "id_in_book": r["id_in_book"],
                 "english_excerpt": r.get("english_excerpt"),
+                "url": _hadith_url(int(r["id"])),
             }
             for r in rows
         ]
@@ -279,7 +299,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             out: dict[str, list[dict[str, Any]]] = {}
             for r in rows:
                 hid = int(r["id"])
-                out[str(hid)] = store.fetch_cross_references(hid, limit=40)
+                out[str(hid)] = [_add_match_url(m) for m in store.fetch_cross_references(hid, limit=40)]
             return out
 
         if hadith_id is not None and coll_raw is not None:
@@ -293,8 +313,9 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             row = store.fetch_hadith(hadith_id=hadith_id)
             if row is None:
                 return {"error": "not_found", "hadith": None, "hadiths": None, "cross_references": None}
-            crs = _attach_cross([row]) if include_cross_references else None
-            return {"error": None, "hadith": row, "hadiths": None, "cross_references": crs}
+            row_out = _add_hadith_url(row)
+            crs = _attach_cross([row_out]) if include_cross_references else None
+            return {"error": None, "hadith": row_out, "hadiths": None, "cross_references": crs}
 
         if not coll_raw:
             return {
@@ -319,8 +340,9 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             row = store.fetch_hadith(collection_slug=slug, id_in_book=start)
             if row is None:
                 return {"error": "not_found", "hadith": None, "hadiths": None, "cross_references": None}
-            crs = _attach_cross([row]) if include_cross_references else None
-            return {"error": None, "hadith": row, "hadiths": None, "cross_references": crs}
+            row_out = _add_hadith_url(row)
+            crs = _attach_cross([row_out]) if include_cross_references else None
+            return {"error": None, "hadith": row_out, "hadiths": None, "cross_references": crs}
 
         span = abs(end - start) + 1
         if span > _MAX_HADITH_RANGE:
@@ -333,8 +355,9 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         rows = store.fetch_hadiths_in_range(slug, start, end)
         if not rows:
             return {"error": "not_found", "hadith": None, "hadiths": [], "cross_references": None}
-        crs = _attach_cross(rows) if include_cross_references else None
-        return {"error": None, "hadith": None, "hadiths": rows, "cross_references": crs}
+        rows_out = [_add_hadith_url(r) for r in rows]
+        crs = _attach_cross(rows_out) if include_cross_references else None
+        return {"error": None, "hadith": None, "hadiths": rows_out, "cross_references": crs}
 
     @mcp.tool()
     async def search_hadith(
@@ -424,7 +447,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             hid = store.resolve_hadith_id(slug, int(inn))
             if hid is None:
                 return {"error": "not_found", "hadith_id": None, "matches": []}
-        matches = store.fetch_cross_references(hid, limit=limit)
+        matches = [_add_match_url(m) for m in store.fetch_cross_references(hid, limit=limit)]
         return {"error": None, "hadith_id": hid, "matches": matches}
 
     @mcp.tool()

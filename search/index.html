@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Hadith Search</title>
+  <meta name="description" content="Search hadith by meaning or direct IDs." />
+  <link rel="icon" href="./favicon.ico" sizes="any">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="top-nav" id="topNav">
+    <div class="nav-inner">
+      <a href="#" class="nav-brand">hadith-search</a>
+      <a href="https://hadith-mcp.org" target="_blank" rel="noopener" class="nav-link">hadith-mcp.org</a>
+    </div>
+  </nav>
+
+  <header class="hero">
+    <div class="hero-inner">
+      <p class="hero-badge">Model Context Protocol</p>
+      <h1>Search Hadith with confidence.</h1>
+      <p class="hero-sub">
+        Semantic search plus direct lookup by DB ID or collection number.
+      </p>
+    </div>
+  </header>
+
+  <main class="section">
+    <div class="container">
+      <section class="search-panel">
+        <label for="searchInput">Search query</label>
+        <div class="search-row">
+          <input id="searchInput" type="search" placeholder="e.g. sleep difficulty, #6074, bukhari 6074" />
+          <button id="searchBtn" class="btn btn-primary" type="button">Search</button>
+          <button id="clearBtn" class="btn btn-outline" type="button">Clear</button>
+        </div>
+        <div class="filters-row">
+          <label for="collectionSelect">Collection</label>
+          <select id="collectionSelect">
+            <option value="">All collections</option>
+          </select>
+        </div>
+      </section>
+
+      <section class="status-row">
+        <p id="statsText" class="section-desc">Enter a query to start.</p>
+      </section>
+
+      <section id="resultsList" class="result-list" aria-live="polite"></section>
+
+      <nav id="pagination" class="pagination" hidden>
+        <button id="prevPageBtn" class="btn btn-outline" type="button">Previous</button>
+        <span id="pageText"></span>
+        <button id="nextPageBtn" class="btn btn-outline" type="button">Next</button>
+      </nav>
+    </div>
+  </main>
+
+  <template id="resultTemplate">
+    <article class="result-card">
+      <div class="result-meta">
+        <span class="chip collection"></span>
+        <span class="chip number"></span>
+        <span class="chip dbid"></span>
+        <span class="chip provenance"></span>
+      </div>
+      <h3 class="result-title"></h3>
+      <p class="result-excerpt"></p>
+      <button class="btn btn-outline toggle-btn" type="button">Show full text</button>
+      <div class="result-full" hidden></div>
+      <div class="result-actions">
+        <button class="btn btn-outline copy-link-btn" type="button">Copy Link</button>
+        <button class="btn btn-outline copy-text-btn" type="button">Copy Text</button>
+      </div>
+    </article>
+  </template>
+
+  <script src="script.js"></script>
+</body>
+</html>
+

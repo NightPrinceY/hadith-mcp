@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>hadith-mcp — Grounded Hadith for AI</title>
+  <meta name="description" content="Open-source MCP server that gives AI assistants grounded access to 50,000+ hadith — exact Arabic and English text, cross-references, and semantic search from Sahih al-Bukhari, Sahih Muslim, and 15 more collections.">
+  <link rel="canonical" href="https://hadith-mcp.org/">
+
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://hadith-mcp.org/">
+  <meta property="og:title" content="hadith-mcp — Grounded Hadith for AI">
+  <meta property="og:description" content="Open-source MCP server that gives AI assistants grounded access to 50,000+ hadith — exact Arabic and English text, cross-references, and semantic search from Sahih al-Bukhari, Sahih Muslim, and 15 more collections.">
+  <meta property="og:image" content="https://hadith-mcp.org/logo.png">
+  <meta property="og:locale" content="en_US">
+  <meta property="og:site_name" content="hadith-mcp">
+
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="hadith-mcp — Grounded Hadith for AI">
+  <meta name="twitter:description" content="Open-source MCP server that gives AI assistants grounded access to 50,000+ hadith — exact Arabic and English text, cross-references, and semantic search from Sahih al-Bukhari, Sahih Muslim, and 15 more collections.">
+  <meta name="twitter:image" content="https://hadith-mcp.org/logo.png">
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "hadith-mcp",
+    "description": "Model Context Protocol server for serving canonical hadith text (Arabic and English) to AI assistants in a citation-safe way, with embeddings and cross-collection references.",
+    "url": "https://hadith-mcp.org/",
+    "applicationCategory": "DeveloperApplication",
+    "operatingSystem": "Any",
+    "license": "https://www.gnu.org/licenses/gpl-3.0.html",
+    "codeRepository": "https://github.com/ovehbe/hadith-mcp",
+    "isAccessibleForFree": true,
+    "offers": {
+      "@type": "Offer",
+      "price": "0",
+      "priceCurrency": "USD"
+    }
+  }
+  </script>
+
+  <link rel="icon" href="/favicon.ico" sizes="any">
+  <link rel="icon" href="/logo.png" type="image/png">
+  <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<!-- ───────── NAV ───────── -->
+<nav class="top-nav" id="topNav">
+  <div class="nav-inner">
+    <a href="#" class="nav-brand">hadith-mcp</a>
+    <button class="nav-toggle" id="navToggle" aria-label="Toggle menu">
+      <span></span><span></span><span></span>
+    </button>
+    <ul class="nav-links" id="navLinks">
+      <li><a href="#why">Why</a></li>
+      <li><a href="#how-it-works">How It Works</a></li>
+      <li><a href="#tools">Tools</a></li>
+      <li><a href="#search-site">Search</a></li>
+      <li><a href="#setup">Setup</a></li>
+      <li><a href="#grounding">Grounding</a></li>
+      <li><a href="https://search.hadith-mcp.org" target="_blank" rel="noopener" class="nav-search">Search App</a></li>
+    </ul>
+  </div>
+</nav>
+
+<!-- ───────── HERO ───────── -->
+<header class="hero">
+  <div class="hero-inner">
+    <p class="hero-badge">Model Context Protocol</p>
+    <h1>Hadith + AI&hairsp;—<br class="hide-mobile">grounded, not guesswork.</h1>
+    <p class="hero-sub">
+      An <strong>MCP server</strong> that serves canonical hadith text&hairsp;—Arabic &amp; English&hairsp;—to
+      AI assistants so they cite from real data instead of quoting from memory.
+    </p>
+    <div class="hero-cta">
+      <a href="#setup" class="btn btn-primary">Get Started</a>
+      <a href="#tools" class="btn btn-outline">Explore Tools</a>
+    </div>
+  </div>
+</header>
+
+<!-- ───────── WHY ───────── -->
+<section id="why" class="section">
+  <div class="container">
+    <h2 class="section-title">Why ground hadith?</h2>
+    <div class="comparison">
+      <div class="comparison-card bad">
+        <div class="comparison-label">Without grounding</div>
+        <ul>
+          <li>Paraphrased narrations from training data</li>
+          <li>Hallucinated or wrong hadith numbers</li>
+          <li>Mixed-up collections and narrators</li>
+          <li>No way to verify what the AI said</li>
+        </ul>
+      </div>
+      <div class="comparison-arrow" aria-hidden="true">→</div>
+      <div class="comparison-card good">
+        <div class="comparison-label">With hadith-mcp</div>
+        <ul>
+          <li>Exact Arabic &amp; English text from the corpus</li>
+          <li>Correct collection slug, book, and hadith number</li>
+          <li>Cross-collection references &amp; provenance tags</li>
+          <li>Semantic + keyword search over 50 000+ narrations</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── HOW IT WORKS ───────── -->
+<section id="how-it-works" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">How It Works</h2>
+    <ol class="steps">
+      <li>
+        <span class="step-num">1</span>
+        <div>
+          <strong>You ask the AI about hadith.</strong>
+          <p>A narration lookup, a thematic search, a cross-reference check — anything.</p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">2</span>
+        <div>
+          <strong>The AI calls hadith-mcp.</strong>
+          <p>
+            It retrieves verified text, narrators, and metadata from a normalized
+            database derived from the
+            <a href="https://github.com/AhmedBaset/hadith-json" target="_blank" rel="noopener">hadith-json</a>
+            dataset (sourced from <a href="https://sunnah.com/" target="_blank" rel="noopener">Sunnah.com</a>).
+          </p>
+        </div>
+      </li>
+      <li>
+        <span class="step-num">3</span>
+        <div>
+          <strong>The response is grounded.</strong>
+          <p>
+            The AI cites exact collection names, hadith numbers, Arabic text, and
+            English translations — backed by the data it fetched, not model memory.
+          </p>
+        </div>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<!-- ───────── TOOLS ───────── -->
+<section id="tools" class="section">
+  <div class="container">
+    <h2 class="section-title">Available Tools</h2>
+    <p class="section-desc">
+      The MCP server exposes five tools. The AI picks the right one based on what you ask.
+    </p>
+    <div class="tool-grid">
+
+      <div class="tool-card">
+        <h3>fetch_grounding_rules</h3>
+        <p>
+          Returns citation guidance and limitations once per session.
+          Re-calls get a short repeat unless <code>force_full=True</code>.
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <h3>list_collections</h3>
+        <p>
+          Lists every collection: slug, English &amp; Arabic names, and hadith counts.
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <h3>fetch_hadith</h3>
+        <p>
+          Fetch by global <code>hadith_id</code> or by <code>collection</code> +
+          <code>hadith_number</code>. Supports ranges like <code>"1-5"</code>
+          and optional cross-references.
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <h3>search_hadith</h3>
+        <p>
+          <strong>Semantic</strong> (embeddings, default), <strong>keyword</strong>
+          (SQL substring), or <strong>both</strong>. Falls back to keyword on
+          rate limits or quota errors.
+        </p>
+      </div>
+
+      <div class="tool-card">
+        <h3>fetch_cross_references</h3>
+        <p>
+          Algorithmic similarity matches across collections for a given hadith —
+          useful for <em>mutaba'ah</em>-style exploration.
+        </p>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ───────── SEARCH SITE ───────── -->
+<section id="search-site" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Hadith Search Web App</h2>
+    <p class="section-desc">
+      Use <strong>search.hadith-mcp.org</strong> to verify AI outputs quickly, explore results directly,
+      and share links to exact hadith rows.
+    </p>
+    <div class="search-site-cta-card">
+      <div class="search-site-cta">
+        <input
+          id="searchSiteQuery"
+          class="search-site-input"
+          type="search"
+          placeholder="Search by topic or enter #ID / collection + number"
+          aria-label="Search query for hadith search app"
+        />
+        <button id="searchSiteSubmit" type="button" class="btn btn-primary">Search</button>
+      </div>
+    </div>
+    <div class="tool-grid">
+      <div class="tool-card">
+        <h3>Verify AI citations quickly</h3>
+        <p>
+          If an assistant returns a hadith reference, you can open the search app and check the
+          exact row text with collection + number metadata in one place.
+        </p>
+      </div>
+      <div class="tool-card">
+        <h3>Direct ID lookup</h3>
+        <p>
+          Supports global DB ids like <code>#6074</code> and collection patterns like
+          <code>bukhari 6074</code>, so it matches real AI output formats.
+        </p>
+      </div>
+      <div class="tool-card">
+        <h3>Shareable proof links</h3>
+        <p>
+          Every result can be shared via direct links, helping teams and users verify what an AI
+          claimed without repeating a full search.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── SETUP ───────── -->
+<section id="setup" class="section">
+  <div class="container">
+    <h2 class="section-title">Setup</h2>
+    <div class="server-status" id="serverStatus">
+      <span class="status-dot" id="statusDot"></span>
+      <span class="status-label" id="statusLabel">Checking server…</span>
+    </div>
+    <div class="server-url-box">
+      <code class="server-url-value">https://hadith-mcp.org</code>
+      <button class="copy-url-btn" aria-label="Copy URL">Copy</button>
+    </div>
+    <p class="section-desc">
+      Connect this server to any AI client that supports MCP. One-time setup, then it just works.
+    </p>
+
+    <div class="setup-tabs" role="tablist">
+      <button class="tab active" role="tab" aria-selected="true" data-tab="claude">Claude</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="chatgpt">ChatGPT</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="cursor">Cursor</button>
+      <button class="tab" role="tab" aria-selected="false" data-tab="other">Other Clients</button>
+    </div>
+
+    <!-- Claude -->
+    <div class="tab-panel active" id="panel-claude">
+      <h3>Claude (Web &amp; Desktop)</h3>
+      <p>Requires a <a href="https://claude.ai/" target="_blank" rel="noopener">Claude subscription</a> (Pro, Team, or Enterprise).</p>
+
+      <div class="setup-steps-list">
+        <div class="setup-step">
+          <span class="setup-step-num">1</span>
+          <div class="setup-step-body">
+            <strong>Open Connectors</strong>
+            <p>Go to <strong>Settings</strong> → <strong>Connectors</strong> → <strong>Customize</strong> panel.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">2</span>
+          <div class="setup-step-body">
+            <strong>Add custom connector</strong>
+            <p>Click the <strong>+</strong> button, then select <strong>Add custom connector</strong>.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">3</span>
+          <div class="setup-step-body">
+            <strong>Configure</strong>
+            <div class="field-row"><span class="field-label">Name</span> <code>hadith</code></div>
+            <div class="field-row"><span class="field-label">URL</span> <code>https://hadith-mcp.org</code></div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">4</span>
+          <div class="setup-step-body">
+            <strong>Allow all tools</strong>
+            <p>Open the connector and set every tool to <strong>Always allow</strong>. They're all read-only.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">5</span>
+          <div class="setup-step-body">
+            <strong>Use it</strong>
+            <p>Open a new chat, enable the <code>hadith</code> connector, and ask your question. Look for tool-call indicators in the response.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ChatGPT -->
+    <div class="tab-panel" id="panel-chatgpt">
+      <h3>ChatGPT (Web, Desktop &amp; Mobile)</h3>
+      <p>Requires a <a href="https://chatgpt.com/" target="_blank" rel="noopener">ChatGPT subscription</a>. Set up on Web or Desktop once and it syncs to Mobile.</p>
+
+      <div class="setup-steps-list">
+        <div class="setup-step">
+          <span class="setup-step-num">1</span>
+          <div class="setup-step-body">
+            <strong>Open app settings</strong>
+            <p>Go to <strong>Settings</strong> → <strong>Apps</strong> → <strong>Advanced</strong> at the bottom.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">2</span>
+          <div class="setup-step-body">
+            <strong>Enable developer mode</strong>
+            <p>Turn on <strong>Developer mode</strong>. A <strong>Create app</strong> button appears in the top-right.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">3</span>
+          <div class="setup-step-body">
+            <strong>Create the app</strong>
+            <div class="field-row"><span class="field-label">Name</span> <code>hadith</code></div>
+            <div class="field-row"><span class="field-label">URL</span> <code>https://hadith-mcp.org</code></div>
+            <div class="field-row"><span class="field-label">Auth</span> <code>none</code></div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">4</span>
+          <div class="setup-step-body">
+            <strong>Use it</strong>
+            <p>Invoke with <code>@hadith</code> in any chat. Look for <strong>Called tool</strong> indicators in the response.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Cursor -->
+    <div class="tab-panel" id="panel-cursor">
+      <h3>Cursor</h3>
+      <p>Add the remote MCP server in Cursor's settings.</p>
+
+      <div class="setup-steps-list">
+        <div class="setup-step">
+          <span class="setup-step-num">1</span>
+          <div class="setup-step-body">
+            <strong>Open MCP settings</strong>
+            <p>Go to <strong>Settings</strong> → <strong>MCP</strong> → <strong>Add new MCP server</strong>.</p>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">2</span>
+          <div class="setup-step-body">
+            <strong>Configure</strong>
+            <div class="field-row"><span class="field-label">Type</span> <code>streamable-http</code></div>
+            <div class="field-row"><span class="field-label">URL</span> <code>https://hadith-mcp.org</code></div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">3</span>
+          <div class="setup-step-body">
+            <strong>Use it</strong>
+            <p>The hadith tools are now available. Ask about hadith and the agent will call the server automatically.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Other Clients -->
+    <div class="tab-panel" id="panel-other">
+      <h3>Other MCP Clients</h3>
+      <p>Any MCP-compatible client can connect. Use the server name <code>hadith</code>, point it at the URL, and keep transport on <code>streamable-http</code>.</p>
+
+      <div class="setup-steps-list">
+        <div class="setup-step">
+          <span class="setup-step-num">1</span>
+          <div class="setup-step-body">
+            <strong>At a glance</strong>
+            <div class="field-row"><span class="field-label">Name</span> <code>hadith</code></div>
+            <div class="field-row"><span class="field-label">URL</span> <code>https://hadith-mcp.org</code></div>
+            <div class="field-row"><span class="field-label">Transport</span> <code>streamable-http</code></div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">2</span>
+          <div class="setup-step-body">
+            <strong>JSON connection object</strong>
+            <div class="code-block">
+              <button class="copy-btn" aria-label="Copy">Copy</button>
+              <pre><code>{
+  "name": "hadith",
+  "url": "https://hadith-mcp.org",
+  "transport": "streamable-http"
+}</code></pre>
+            </div>
+          </div>
+        </div>
+        <div class="setup-step">
+          <span class="setup-step-num">3</span>
+          <div class="setup-step-body">
+            <strong>Claude Desktop config file</strong>
+            <p>Add to <code>claude_desktop_config.json</code>:</p>
+            <div class="code-block">
+              <button class="copy-btn" aria-label="Copy">Copy</button>
+              <pre><code>{
+  "mcpServers": {
+    "hadith": {
+      "url": "https://hadith-mcp.org",
+      "transport": "streamable-http"
+    }
+  }
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ───────── GROUNDING ───────── -->
+<section id="grounding" class="section section-alt">
+  <div class="container">
+    <h2 class="section-title">Grounding &amp; Limitations</h2>
+    <div class="grounding-grid">
+      <div class="grounding-item">
+        <h4>Source of truth</h4>
+        <p>
+          All text comes from <strong>hadith.db</strong>, built from the community
+          hadith-json dataset (Sunnah.com). Prefer tool output over model paraphrase.
+        </p>
+      </div>
+      <div class="grounding-item">
+        <h4>Citations</h4>
+        <p>
+          Always cite with <strong>collection slug</strong> and <strong>id_in_book</strong>.
+          Never invent numbering.
+        </p>
+      </div>
+      <div class="grounding-item">
+        <h4>Cross-references</h4>
+        <p>
+          Algorithmic matches (embedding similarity + narrator hints) — not a substitute
+          for classical <em>mutaba'ah</em> scholarship.
+        </p>
+      </div>
+      <div class="grounding-item">
+        <h4>Provenance tags</h4>
+        <p>
+          Labels like <code>muttafaq_alayh</code> or <code>corroborated</code> are
+          heuristic pipeline tags, not theological rulings.
+        </p>
+      </div>
+      <div class="grounding-item">
+        <h4>Arabic / English</h4>
+        <p>
+          English translations may be incomplete. Arabic strings are authoritative
+          for the stored row.
+        </p>
+      </div>
+      <div class="grounding-item">
+        <h4>Search limits</h4>
+        <p>
+          Semantic search uses OpenAI embeddings. Keyword search is SQL substring.
+          Neither ranks by scholarly importance.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── DISCLAIMER ───────── -->
+<section class="disclaimer" id="disclaimer">
+  <div class="container">
+    <div class="disclaimer-card">
+      <div class="disclaimer-header">
+        <span class="disclaimer-icon" aria-hidden="true">&#9888;</span>
+        <h2>Important — Please Read</h2>
+      </div>
+      <div class="disclaimer-body">
+        <p>
+          This tool retrieves hadith text from a database. <strong>It is not a scholar, a mufti, or a
+          substitute for qualified Islamic scholarship.</strong> AI can still misinterpret context,
+          conflate narrations, or present text without the nuance that trained scholars provide.
+        </p>
+        <p>
+          <strong>Do not blindly trust any AI output on religious matters</strong> — whether from this
+          tool or any other. Always verify hadith citations against recognized scholarly sources.
+          Consult qualified scholars for matters of fiqh, aqeedah, and religious practice.
+        </p>
+        <p>
+          Cross-references and provenance tags in this tool are <strong>algorithmic approximations</strong>,
+          not the product of classical hadith criticism (<em>ilm al-rijal</em>). They may contain errors.
+          The grading, authenticity, and contextual application of hadith require expertise that
+          no software can replace.
+        </p>
+      </div>
+      <div class="disclaimer-footer">
+        We built this tool to reduce AI hallucination, not to replace human knowledge.<br>
+        Use it as a starting point, never as the final word.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ───────── FOOTER ───────── -->
+<footer class="site-footer">
+  <div class="container">
+    <div class="footer-inner">
+      <p>
+        <strong>hadith-mcp</strong> &middot;
+        <a href="https://github.com/ovehbe/hadith-mcp" target="_blank" rel="noopener">GitHub</a> &middot;
+        GPL-3.0
+      </p>
+      <p class="footer-credit">
+        Data from <a href="https://github.com/AhmedBaset/hadith-json" target="_blank" rel="noopener">hadith-json</a>
+        / <a href="https://sunnah.com/" target="_blank" rel="noopener">Sunnah.com</a>.
+        Inspired by <a href="https://github.com/quran/quran-mcp" target="_blank" rel="noopener">quran-mcp</a>.
+      </p>
+    </div>
+  </div>
+</footer>
+
+<script src="script.js"></script>
+</body>
+</html>
