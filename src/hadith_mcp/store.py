@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import sqlite3
 from pathlib import Path
 from typing import Any
@@ -14,6 +15,97 @@ def _like_term(term: str) -> str:
         .replace("_", "\\_")
     )
     return f"%{esc}%"
+
+
+# ─── Collection-slug normalization ─────────────────────────
+#
+# LLMs and users write hadith collection names many different ways
+# (``sahih-bukhari`` vs ``Sahih al-Bukhari`` vs ``bukhari``). The functions
+# below reduce every one of those surface forms to a single comparison
+# key so ``resolve_collection_slug`` can match them against the canonical
+# short slugs stored in ``collections.slug``.
+
+# Collection-type prefixes to strip from the front of an input. Order
+# matters only in that multi-word prefixes must come before their shorter
+# substrings. Everything here is matched case-insensitively.
+_COLLECTION_PREFIX_WORDS: tuple[str, ...] = (
+    "40 hadith",
+    "forty hadith",
+    "sahih",
+    "sunan",
+    "jami",
+    "jami'",
+    "musnad",
+    "muwatta",
+)
+
+# Arabic definite-article prefixes (transliterated) to strip after the
+# collection-type prefix has been peeled off.
+_ARABIC_ARTICLES: tuple[str, ...] = (
+    "al", "an", "at", "ad", "as", "ar", "az",
+)
+
+_NON_ALNUM_RE = re.compile(r"[^a-z0-9]+")
+
+
+def _normalize_collection_key(raw: str) -> str:
+    """Reduce an arbitrary collection reference to a comparison key.
+
+    >>> _normalize_collection_key("Sahih al-Bukhari")
+    'bukhari'
+    >>> _normalize_collection_key("sunan-abu-dawud")
+    'abudawud'
+    >>> _normalize_collection_key("jami at-tirmidhi")
+    'tirmidhi'
+    >>> _normalize_collection_key("40 hadith Nawawi")
+    'nawawi'
+    """
+    s = raw.strip().lower()
+    # Peel off collection-type prefix words repeatedly (e.g. an input like
+    # "sahih sahih-bukhari" would normalize to "bukhari").
+    changed = True
+    while changed:
+        changed = False
+        for word in _COLLECTION_PREFIX_WORDS:
+            for sep in (" ", "-", "_"):
+                pref = word + sep
+                if s.startswith(pref):
+                    s = s[len(pref):].lstrip(" -_")
+                    changed = True
+        for art in _ARABIC_ARTICLES:
+            for sep in ("-", " ", "_"):
+                pref = art + sep
+                if s.startswith(pref):
+                    s = s[len(pref):].lstrip(" -_")
+                    changed = True
+    return _NON_ALNUM_RE.sub("", s)
+
+
+# Orthographic variants that normalization alone cannot collapse. Keys are
+# already-normalized forms of the input; values are canonical slugs.
+_COLLECTION_ALIAS_MAP: dict[str, str] = {
+    # "Musnad Ahmad" → normalizes to "ahmad", but canonical slug is "ahmed".
+    "ahmad": "ahmed",
+    "ahmadibnhanbal": "ahmed",
+    # "40 Hadith Nawawi" / "Nawawi 40" → normalize to "nawawi" / "40nawawi";
+    # canonical slug is "nawawi40".
+    "nawawi": "nawawi40",
+    "40nawawi": "nawawi40",
+    "fortynawawi": "nawawi40",
+    "qudsi": "qudsi40",
+    "40qudsi": "qudsi40",
+    "fortyqudsi": "qudsi40",
+    "shahwaliullah": "shahwaliullah40",
+    "40shahwaliullah": "shahwaliullah40",
+    # Common transliteration variants.
+    "abudawood": "abudawud",
+    "nasai": "nasai",
+    "nasa": "nasai",
+    "nasa'i": "nasai",
+    "ibnmajah": "ibnmajah",
+    "ibnemajah": "ibnmajah",
+    "ibnmaja": "ibnmajah",
+}
 
 
 class HadithStore:
@@ -40,7 +132,25 @@ class HadithStore:
         return [dict(r) for r in cur.fetchall()]
 
     def resolve_collection_slug(self, name_or_slug: str) -> str | None:
-        """Resolve English name or slug to canonical ``collections.slug``."""
+        """Resolve an English name or slug to the canonical ``collections.slug``.
+
+        Handles the common ways LLMs and users write these collection names:
+
+        * canonical short slugs (``bukhari``, ``ibnmajah``, ``nawawi40``)
+        * ``name_english`` verbatim (``"Sahih al-Bukhari"``, ``"Sunan Abu Dawud"``)
+        * full qualified forms (``"sahih-bukhari"``, ``"sunan-an-nasai"``,
+          ``"jami-at-tirmidhi"``, ``"musnad-ahmad"``, ``"40 hadith nawawi"``)
+
+        The matching strategy: try the exact slug / ``name_english`` first
+        (fastest path, handles the common case), then fall back to a
+        normalized comparison that strips collection-type prefix words
+        (``sahih``, ``sunan``, ``jami``, ``musnad``, ``muwatta``,
+        ``40 hadith``), Arabic definite-article prefixes (``al-``, ``an-``,
+        ``at-``, ``ad-``, ``as-``, ``ar-``, ``az-``), and all
+        non-alphanumerics. A small alias table handles orthographic
+        variants that normalization alone cannot (``ahmad`` vs ``ahmed``,
+        ``nawawi`` vs ``nawawi40``).
+        """
         raw = name_or_slug.strip()
         if not raw:
             return None
@@ -54,7 +164,24 @@ class HadithStore:
             "SELECT slug FROM collections WHERE lower(name_english) = lower(?)",
             (raw,),
         ).fetchone()
-        return str(row[0]) if row else None
+        if row:
+            return str(row[0])
+        key = _normalize_collection_key(raw)
+        if not key:
+            return None
+        alias = _COLLECTION_ALIAS_MAP.get(key)
+        if alias:
+            return alias
+        # Finally, compare normalized forms of stored slugs / names.
+        cur = self._conn.execute(
+            "SELECT slug, name_english FROM collections"
+        )
+        for slug, name_english in cur.fetchall():
+            if _normalize_collection_key(slug) == key:
+                return str(slug)
+            if name_english and _normalize_collection_key(name_english) == key:
+                return str(slug)
+        return None
 
     def get_collection_id(self, slug: str) -> int | None:
         row = self._conn.execute(

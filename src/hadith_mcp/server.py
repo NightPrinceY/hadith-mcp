@@ -252,10 +252,15 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             "Semantic search falls back to keyword on rate limits, quota/billing errors, or model/index mismatch. "
             "Cross-references are algorithmic, not scholarly isnad proof. "
             "When the user asks to open, read, browse, or 'show' a hadith (or a search result set) "
-            "interactively, call show_hadith instead of fetch_hadith / search_hadith so the Hadith "
-            "Reader App opens for them. Keep using fetch_hadith / search_hadith for raw text you "
-            "need to quote or reason over in your answer. show_hadith also returns a text fallback "
-            "with the same 'url' field, so cite from that output just like any other tool response."
+            "interactively, call show_hadith so the Hadith Reader App opens for them. Prefer "
+            "show_hadith(hadith_id=<id>) — the 'id' field on any fetch_hadith / search_hadith / "
+            "fetch_cross_references row. If you do not already know that canonical id from an "
+            "earlier tool call in this conversation, first look the hadith up with fetch_hadith "
+            "(collection + hadith_number) or search_hadith (free text), THEN call show_hadith "
+            "with the hadith_id from the response. Never guess hadith_id values from memory. "
+            "Keep using fetch_hadith / search_hadith for raw text you need to quote or reason "
+            "over in your answer. show_hadith also returns a text fallback with the same 'url' "
+            "field, so cite from that output just like any other tool response."
         ),
         icons=[Icon(src="https://hadith-mcp.org/logo.png")],
         lifespan=_lifespan,
@@ -572,13 +577,26 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         title="Show Hadith Reader",
         description=(
             "Open the interactive Hadith Reader UI for a user. Renders a card-based reader with "
-            "collection/number/chapter chips, Arabic typography, and cross-references. "
-            "Entry points (mutually exclusive): global 'hadith_id'; 'collection' + "
-            "'hadith_number' / 'id_in_book'; or free-text 'query' (runs semantic search with "
-            "keyword fallback). Call with no arguments to open an empty reader. "
-            "Prefer fetch_hadith / search_hadith for raw text fetches in answers; use this tool "
-            "when the user should browse interactively (e.g. 'show me…', 'open…', "
-            "'let me read…'). Always surface the returned 'url' alongside any hadith you cite."
+            "collection/number/chapter chips, Arabic typography, and cross-references.\n\n"
+            "PREFERRED ENTRY POINT: global 'hadith_id' (the database id returned by "
+            "fetch_hadith / search_hadith as the 'id' field). This is the most reliable form "
+            "because it skips all name / slug / number resolution.\n\n"
+            "Recommended flow when the user asks to 'show / open / read / view a hadith':\n"
+            "  1. If you do not already know the canonical 'hadith_id' from an earlier tool "
+            "     call in this conversation, first call fetch_hadith (for a known "
+            "     collection+number) or search_hadith (for free text) to find it.\n"
+            "  2. Then call show_hadith(hadith_id=<that id>) to open the reader on that exact "
+            "     hadith. Do NOT rely on the model's memory for hadith_id values — always get "
+            "     them from a prior tool response.\n\n"
+            "Secondary entry points (use only if step 1 is not practical):\n"
+            "  - 'collection' (slug or English name; sahih-bukhari / Sahih al-Bukhari / bukhari "
+            "    all resolve) + 'hadith_number' (same as id_in_book).\n"
+            "  - 'query' — free-text search rendered inside the reader (semantic with keyword "
+            "    fallback).\n"
+            "  - no arguments — opens an empty reader for the user to browse.\n\n"
+            "Do not follow show_hadith with fetch_hadith / search_hadith for the same hadith "
+            "just to re-read text — the structured response already contains the full row. "
+            "Always surface the returned 'url' alongside any hadith you cite."
         ),
         annotations={
             "readOnlyHint": True,
