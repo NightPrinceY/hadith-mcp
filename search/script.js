@@ -7,11 +7,14 @@
   const API_BASE = (typeof window !== "undefined" && window.HADITH_API_BASE)
     || "https://api.hadith-mcp.org";
 
+  const CLAMP_OVERFLOW_PX = 4;
+
   const state = {
     query: "",
     page: 1,
     perPage: 10,
     results: [],
+    singleLookup: false,
   };
 
   const searchInput = document.getElementById("searchInput");
@@ -26,9 +29,7 @@
   const pageText = document.getElementById("pageText");
   const resultTemplate = document.getElementById("resultTemplate");
 
-  const esc = (s = "") =>
-    String(s).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
-
+  // ─── Lookup + fetch ──────────────────────────────────────
   function parseLookup(query) {
     const q = query.trim();
     const bare = q.match(/^#?(\d+)$/);
@@ -58,36 +59,189 @@
     const q = state.query.trim();
     if (!q) {
       state.results = [];
-      render();
+      state.singleLookup = false;
       return;
     }
     const lookup = parseLookup(q);
     if (lookup?.kind === "global") {
       const data = await getJson(`${API_BASE}/api/hadith/${lookup.id}`);
       state.results = data.hadith ? [data.hadith] : [];
+      state.singleLookup = true;
       return;
     }
     if (lookup?.kind === "collection") {
       const data = await getJson(`${API_BASE}/api/hadith/${encodeURIComponent(lookup.slug)}/${lookup.idInBook}`);
       state.results = data.hadith ? [data.hadith] : [];
+      state.singleLookup = true;
       return;
     }
     const params = new URLSearchParams({ q, limit: "100" });
     if (collectionSelect.value) params.set("collection", collectionSelect.value);
     const data = await getJson(`${API_BASE}/api/search?${params.toString()}`);
     state.results = data.results || [];
+    state.singleLookup = false;
   }
 
-  function hadithTitle(item) {
-    return `${item.collection_name_english || item.collection_slug} #${item.id_in_book}`;
-  }
+  // ─── Rendering helpers ───────────────────────────────────
 
   function shareUrl(item) {
     return `${location.origin}/?id=${item.id}`;
   }
 
-  async function copy(text) {
-    await navigator.clipboard.writeText(text);
+  function formatNarrator(raw) {
+    if (!raw) return "";
+    const s = raw.trim();
+    if (!s) return "";
+    if (/^(narrated|reported|it was narrated)/i.test(s)) return s.endsWith(":") ? s : `${s}:`;
+    return `Narrated ${s}:`;
+  }
+
+  function formatSimilarity(sim) {
+    if (typeof sim !== "number" || !Number.isFinite(sim)) return null;
+    const pct = Math.round(sim * 100);
+    return `${pct}% match`;
+  }
+
+  function englishTextOf(item) {
+    return item.english || item.english_excerpt || "";
+  }
+
+  // Detect overflow after layout and toggle the "Show more" control.
+  function setupClamp(bodyEl, textEl, expandBtn, expanded) {
+    if (expanded) {
+      textEl.classList.remove("is-clamped");
+      expandBtn.hidden = true;
+      return;
+    }
+    textEl.classList.add("is-clamped");
+    requestAnimationFrame(() => {
+      const overflow = textEl.scrollHeight - textEl.clientHeight > CLAMP_OVERFLOW_PX;
+      if (overflow) {
+        expandBtn.hidden = false;
+        expandBtn.textContent = "Show more";
+      } else {
+        textEl.classList.remove("is-clamped");
+        expandBtn.hidden = true;
+      }
+    });
+  }
+
+  async function copyToClipboard(text, btn) {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (btn) {
+        btn.classList.add("is-copied");
+        setTimeout(() => btn.classList.remove("is-copied"), 900);
+      }
+      showToast("Copied");
+    } catch {
+      showToast("Copy failed");
+    }
+  }
+
+  let toastTimer = null;
+  function showToast(msg) {
+    let el = document.querySelector(".toast");
+    if (!el) {
+      el = document.createElement("div");
+      el.className = "toast";
+      document.body.appendChild(el);
+    }
+    el.textContent = msg;
+    requestAnimationFrame(() => el.classList.add("is-visible"));
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => el.classList.remove("is-visible"), 1400);
+  }
+
+  function renderCard(item, { detail = false } = {}) {
+    const card = resultTemplate.content.firstElementChild.cloneNode(true);
+    if (detail) card.classList.add("is-detail");
+
+    // Meta chips
+    const collName = item.collection_name_english || item.collection_slug || "";
+    card.querySelector(".chip-coll").textContent = collName;
+    card.querySelector(".chip-num").textContent = `#${item.id_in_book}`;
+
+    const chapterEl = card.querySelector(".chip-chapter");
+    if (item.chapter_name_english) {
+      chapterEl.textContent = item.chapter_name_english;
+      chapterEl.hidden = false;
+    }
+
+    const simEl = card.querySelector(".chip-sim");
+    const simLabel = formatSimilarity(item.similarity);
+    if (simLabel) {
+      simEl.textContent = simLabel;
+      simEl.hidden = false;
+    }
+
+    // Narrator (italic accent line)
+    const narrEl = card.querySelector(".result-narrator");
+    const narr = formatNarrator(item.narrator);
+    if (narr) {
+      narrEl.textContent = narr;
+      narrEl.hidden = false;
+    }
+
+    // English body + smart clamp
+    const bodyEl = card.querySelector(".result-body");
+    const textEl = card.querySelector(".english-text");
+    const expandBtn = card.querySelector(".expand-btn");
+    textEl.textContent = englishTextOf(item);
+
+    let expanded = detail;
+    setupClamp(bodyEl, textEl, expandBtn, expanded);
+    expandBtn.addEventListener("click", () => {
+      expanded = !expanded;
+      if (expanded) {
+        textEl.classList.remove("is-clamped");
+        expandBtn.textContent = "Show less";
+      } else {
+        textEl.classList.add("is-clamped");
+        expandBtn.textContent = "Show more";
+      }
+    });
+
+    // Arabic block
+    if (item.arabic && item.arabic.trim()) {
+      const arBlock = card.querySelector(".arabic-block");
+      const arText = card.querySelector(".arabic-text");
+      arText.textContent = item.arabic.trim();
+      arBlock.hidden = false;
+    }
+
+    // Footer: DB id + provenance (if set)
+    card.querySelector(".chip-dbid").textContent = `DB ${item.id}`;
+    const prov = (item.provenance || "").trim();
+    if (prov) {
+      const provEl = card.querySelector(".chip-prov");
+      provEl.textContent = prov;
+      provEl.hidden = false;
+    }
+
+    // Actions
+    const openLink = card.querySelector(".open-link");
+    openLink.href = item.url || shareUrl(item);
+
+    card.querySelector(".copy-link-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      copyToClipboard(shareUrl(item), e.currentTarget);
+    });
+    card.querySelector(".copy-text-btn").addEventListener("click", (e) => {
+      e.stopPropagation();
+      const header = `${collName} #${item.id_in_book}`;
+      const body = [
+        header,
+        narr,
+        "",
+        englishTextOf(item),
+        item.arabic ? `\n${item.arabic}` : "",
+        `\n${shareUrl(item)}`,
+      ].filter(Boolean).join("\n");
+      copyToClipboard(body, e.currentTarget);
+    });
+
+    return card;
   }
 
   function render() {
@@ -98,48 +252,26 @@
       pagination.hidden = true;
       return;
     }
+
+    // Single-item lookup: render in focused "detail" mode, no pagination.
+    if (state.singleLookup && total === 1) {
+      statsText.textContent = "Direct lookup.";
+      resultsList.replaceChildren(renderCard(state.results[0], { detail: true }));
+      pagination.hidden = true;
+      return;
+    }
+
     const pages = Math.max(1, Math.ceil(total / state.perPage));
     state.page = Math.min(state.page, pages);
     const start = (state.page - 1) * state.perPage;
     const end = Math.min(total, start + state.perPage);
     const rows = state.results.slice(start, end);
-    statsText.textContent = `Showing ${start + 1}-${end} of ${total} result(s).`;
+    statsText.textContent = `Showing ${start + 1}–${end} of ${total} result(s).`;
 
     const frag = document.createDocumentFragment();
-    for (const item of rows) {
-      const card = resultTemplate.content.firstElementChild.cloneNode(true);
-      card.querySelector(".collection").textContent = item.collection_name_english || item.collection_slug || "";
-      card.querySelector(".number").textContent = `#${item.id_in_book}`;
-      card.querySelector(".dbid").textContent = `DB ${item.id}`;
-      card.querySelector(".provenance").textContent = item.provenance || "";
-      card.querySelector(".result-title").textContent = hadithTitle(item);
-      card.querySelector(".result-excerpt").textContent = item.english_excerpt || (item.english || "").slice(0, 280);
-
-      const full = card.querySelector(".result-full");
-      full.innerHTML = `
-        <div>${esc(item.english || item.english_excerpt || "")}</div>
-        ${item.arabic ? `<div class="arabic">${esc(item.arabic)}</div>` : ""}
-      `;
-
-      const toggle = card.querySelector(".toggle-btn");
-      toggle.addEventListener("click", () => {
-        const open = full.hidden;
-        full.hidden = !open;
-        toggle.textContent = open ? "Hide full text" : "Show full text";
-      });
-
-      card.querySelector(".copy-link-btn").addEventListener("click", async () => {
-        await copy(shareUrl(item));
-      });
-      card.querySelector(".copy-text-btn").addEventListener("click", async () => {
-        const body = `${hadithTitle(item)}\nDB ID: ${item.id}\n\n${item.english || item.english_excerpt || ""}\n\n${shareUrl(item)}`;
-        await copy(body);
-      });
-
-      frag.appendChild(card);
-    }
-
+    for (const item of rows) frag.appendChild(renderCard(item));
     resultsList.replaceChildren(frag);
+
     pagination.hidden = pages <= 1;
     prevPageBtn.disabled = state.page <= 1;
     nextPageBtn.disabled = state.page >= pages;
@@ -166,6 +298,7 @@
   clearBtn.addEventListener("click", () => {
     state.query = "";
     state.results = [];
+    state.singleLookup = false;
     state.page = 1;
     searchInput.value = "";
     render();
@@ -207,4 +340,3 @@
       if (!bootstrapFromUrl()) render();
     });
 })();
-

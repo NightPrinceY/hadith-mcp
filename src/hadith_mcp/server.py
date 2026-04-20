@@ -14,8 +14,10 @@ import anyio
 import numpy as np
 from dotenv import load_dotenv
 from fastmcp import Context, FastMCP
+from fastmcp.resources import ResourceContent
 from fastmcp.server.lifespan import lifespan
-from mcp.types import Icon
+from fastmcp.tools import ToolResult
+from mcp.types import Icon, TextContent
 from openai import OpenAI
 from starlette.requests import Request
 from starlette.responses import Response
@@ -34,6 +36,9 @@ logger = logging.getLogger("hadith_mcp.server")
 
 _MAX_HADITH_RANGE = 25
 _SEARCH_APP_BASE_URL = os.environ.get("HADITH_SEARCH_APP_URL", "https://search.hadith-mcp.org").strip().rstrip("/")
+
+_HADITH_APP_MIME = "text/html;profile=mcp-app"
+_HADITH_APP_HTML_PATH = Path(__file__).parent / "assets" / "hadith_app.html"
 
 
 def _search_client_key(ctx: Context) -> str:
@@ -150,6 +155,81 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         logger.info("closed database connection")
 
 
+def _format_narrator_line(raw: str | None) -> str:
+    s = (raw or "").strip()
+    if not s:
+        return ""
+    if s.lower().startswith(("narrated", "reported", "it was narrated")):
+        return s if s.endswith(":") else f"{s}:"
+    return f"Narrated {s}:"
+
+
+def _format_detail_fallback(hadith: dict[str, Any], cross_refs: list[dict[str, Any]]) -> str:
+    coll = hadith.get("collection_name_english") or hadith.get("collection_slug") or ""
+    header = f"{coll} #{hadith.get('id_in_book', '?')}"
+    chapter = hadith.get("chapter_name_english")
+    if chapter:
+        header += f" — {chapter}"
+    parts: list[str] = [header]
+    narr = _format_narrator_line(hadith.get("narrator"))
+    if narr:
+        parts += ["", narr]
+    english = (hadith.get("english") or "").strip()
+    if english:
+        parts += ["", english]
+    arabic = (hadith.get("arabic") or "").strip()
+    if arabic:
+        parts += ["", arabic]
+    url = hadith.get("url")
+    if url:
+        parts += ["", f"URL: {url}"]
+    if cross_refs:
+        parts += ["", f"Cross-references ({len(cross_refs)}):"]
+        for m in cross_refs[:5]:
+            sim = m.get("similarity")
+            sim_str = f" ({float(sim):.2f})" if isinstance(sim, (int, float)) else ""
+            parts.append(
+                f"- {m.get('collection_slug')} #{m.get('id_in_book')}"
+                f"{sim_str} {m.get('url', '')}".rstrip()
+            )
+    return "\n".join(parts)
+
+
+def _format_search_fallback(
+    query: str, results: list[dict[str, Any]], note: str | None
+) -> str:
+    if not results:
+        return f'No results for "{query}".' + (f"\n{note}" if note else "")
+    lines = [f'Search: "{query}" — {len(results)} result(s)']
+    if note:
+        lines.append(note)
+    lines.append("")
+    for i, r in enumerate(results[:10], 1):
+        sim = r.get("similarity")
+        sim_str = (
+            f" — {int(round(float(sim) * 100))}%"
+            if isinstance(sim, (int, float))
+            else ""
+        )
+        lines.append(
+            f"{i}. {r.get('collection_slug')} #{r.get('id_in_book')}{sim_str}"
+        )
+        excerpt = (r.get("english_excerpt") or "").strip()
+        if excerpt:
+            lines.append(f"   {excerpt[:200]}")
+        if r.get("url"):
+            lines.append(f"   {r['url']}")
+    return "\n".join(lines)
+
+
+_EMPTY_FALLBACK_TEXT = (
+    "Hadith Reader — no query given.\n\n"
+    "Call show_hadith(hadith_id=…) to open a specific hadith, "
+    "show_hadith(collection=…, hadith_number=…), "
+    "or show_hadith(query=…) to run a search in the reader."
+)
+
+
 def build_server(*, config_yaml: Path | None = None) -> FastMCP:
     cfg = load_app_config(config_yaml=config_yaml)
     mcp = FastMCP(
@@ -167,7 +247,12 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             "rather than inventing one. "
             "search_hadith defaults to semantic (embeddings); use mode='keyword' for substring search. "
             "Semantic search falls back to keyword on rate limits, quota/billing errors, or model/index mismatch. "
-            "Cross-references are algorithmic, not scholarly isnad proof."
+            "Cross-references are algorithmic, not scholarly isnad proof. "
+            "When the user asks to open, read, browse, or 'show' a hadith (or a search result set) "
+            "interactively, call show_hadith instead of fetch_hadith / search_hadith so the Hadith "
+            "Reader App opens for them. Keep using fetch_hadith / search_hadith for raw text you "
+            "need to quote or reason over in your answer. show_hadith also returns a text fallback "
+            "with the same 'url' field, so cite from that output just like any other tool response."
         ),
         icons=[Icon(src="https://hadith-mcp.org/logo.png")],
         lifespan=_lifespan,
@@ -478,6 +563,182 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             force_full=force_full,
             full_text=GROUNDING_RULES,
         )
+
+    @mcp.tool(
+        name="show_hadith",
+        title="Show Hadith Reader",
+        description=(
+            "Open the interactive Hadith Reader UI for a user. Renders a card-based reader with "
+            "collection/number/chapter chips, Arabic typography, and cross-references. "
+            "Entry points (mutually exclusive): global 'hadith_id'; 'collection' + "
+            "'hadith_number' / 'id_in_book'; or free-text 'query' (runs semantic search with "
+            "keyword fallback). Call with no arguments to open an empty reader. "
+            "Prefer fetch_hadith / search_hadith for raw text fetches in answers; use this tool "
+            "when the user should browse interactively (e.g. 'show me…', 'open…', "
+            "'let me read…'). Always surface the returned 'url' alongside any hadith you cite."
+        ),
+        annotations={
+            "readOnlyHint": True,
+            "destructiveHint": False,
+            "idempotentHint": True,
+            "openWorldHint": False,
+        },
+        meta={"ui": {"resourceUri": "ui://hadith.html"}},
+        tags={"preview", "app", "hadith"},
+    )
+    async def show_hadith(
+        ctx: Context,
+        hadith_id: int | None = None,
+        collection: str | None = None,
+        collection_slug: str | None = None,
+        hadith_number: int | None = None,
+        id_in_book: int | None = None,
+        query: str | None = None,
+    ) -> ToolResult:
+        store: HadithStore = ctx.lifespan_context["store"]
+        coll_raw = (collection or collection_slug or "").strip() or None
+        num = hadith_number if hadith_number is not None else id_in_book
+        q = (query or "").strip() or None
+
+        structured: dict[str, Any] = {
+            "kind": "empty",
+            "hadith": None,
+            "cross_references": None,
+            "query": None,
+            "search_results": None,
+            "search_mode": None,
+            "search_note": None,
+            "collection_filter": coll_raw,
+            "collections": store.list_collections(),
+            "search_app_url": _SEARCH_APP_BASE_URL,
+            "interactive": True,
+        }
+
+        if hadith_id is not None or (coll_raw and num is not None):
+            row = None
+            if hadith_id is not None:
+                row = store.fetch_hadith(hadith_id=int(hadith_id))
+            else:
+                slug = store.resolve_collection_slug(coll_raw) or coll_raw
+                try:
+                    row = store.fetch_hadith(collection_slug=slug, id_in_book=int(num))
+                except (TypeError, ValueError):
+                    row = None
+            if row is None:
+                structured["kind"] = "empty"
+                return ToolResult(
+                    content=[TextContent(type="text", text="Hadith not found.")],
+                    structured_content=structured,
+                )
+            row_out = _add_hadith_url(row)
+            cross_refs = [
+                _add_match_url(m)
+                for m in store.fetch_cross_references(int(row["id"]), limit=40)
+            ]
+            structured["kind"] = "detail"
+            structured["hadith"] = row_out
+            structured["cross_references"] = cross_refs
+            return ToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=_format_detail_fallback(row_out, cross_refs),
+                    )
+                ],
+                structured_content=structured,
+            )
+
+        if q:
+            sem = await _semantic_search(ctx, q, 30, coll_raw)
+            if sem.get("ok"):
+                results = sem["results"]
+                mode = "semantic"
+                note = "cached_response" if sem.get("cache_hit") else None
+            else:
+                kw = _keyword_search(ctx, q, 30, coll_raw)
+                results = kw["results"]
+                reason = sem.get("reason")
+                if reason == "semantic_unavailable":
+                    note = "Semantic search unavailable; used keyword search."
+                elif reason == "rate_limited":
+                    note = "Search rate limit exceeded; used keyword search."
+                elif reason == "dimension_mismatch":
+                    note = (
+                        "Query embedding size does not match database vectors; "
+                        "used keyword search."
+                    )
+                elif reason == "openai_error":
+                    note = (
+                        "OpenAI embedding failed; used keyword search."
+                        f" ({sem.get('openai_message', '')})"
+                    )
+                else:
+                    note = "Semantic search failed; used keyword search."
+                mode = "keyword_fallback"
+
+            structured["kind"] = "search"
+            structured["query"] = q
+            structured["search_results"] = results
+            structured["search_mode"] = mode
+            structured["search_note"] = note
+            return ToolResult(
+                content=[
+                    TextContent(
+                        type="text",
+                        text=_format_search_fallback(q, results, note),
+                    )
+                ],
+                structured_content=structured,
+            )
+
+        return ToolResult(
+            content=[TextContent(type="text", text=_EMPTY_FALLBACK_TEXT)],
+            structured_content=structured,
+        )
+
+    _HADITH_APP_HTML: str | None = None
+    if _HADITH_APP_HTML_PATH.is_file():
+        _HADITH_APP_HTML = _HADITH_APP_HTML_PATH.read_text(encoding="utf-8")
+        logger.info(
+            "loaded hadith app html (%d bytes) from %s",
+            len(_HADITH_APP_HTML),
+            _HADITH_APP_HTML_PATH,
+        )
+    else:
+        logger.warning("hadith app html missing at %s", _HADITH_APP_HTML_PATH)
+
+    @mcp.resource(
+        "ui://hadith.html",
+        name="Hadith Reader App",
+        description=(
+            "Interactive hadith reader with search, detail view, cross-references, "
+            "Arabic typography, and citation URLs."
+        ),
+        mime_type=_HADITH_APP_MIME,
+        tags={"preview", "app"},
+    )
+    async def hadith_app() -> list[ResourceContent]:
+        if _HADITH_APP_HTML is None:
+            raise FileNotFoundError(
+                f"Hadith app HTML not found at {_HADITH_APP_HTML_PATH}."
+            )
+        return [
+            ResourceContent(
+                _HADITH_APP_HTML,
+                mime_type=_HADITH_APP_MIME,
+                meta={
+                    "ui": {
+                        "csp": {
+                            "resourceDomains": [
+                                "https://esm.sh",
+                                "https://fonts.googleapis.com",
+                                "https://fonts.gstatic.com",
+                            ],
+                        },
+                    },
+                },
+            )
+        ]
 
     _ICON_PATH = Path(__file__).parent / "assets" / "icon.png"
     _icon_bytes: bytes | None = None

@@ -8,6 +8,9 @@
   <link rel="icon" href="./favicon.ico" sizes="any">
   <link rel="icon" href="/logo.png" type="image/png">
   <link rel="apple-touch-icon" href="/logo.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Amiri:ital,wght@0,400;0,700;1,400&family=Noto+Naskh+Arabic:wght@400;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -60,25 +63,55 @@
   </main>
 
   <template id="resultTemplate">
-    <article class="result-card">
-      <div class="result-meta">
-        <span class="chip collection"></span>
-        <span class="chip number"></span>
-        <span class="chip dbid"></span>
-        <span class="chip provenance"></span>
+    <article class="result-card" tabindex="0">
+      <header class="result-head">
+        <div class="result-meta">
+          <span class="chip chip-coll"></span>
+          <span class="chip chip-num"></span>
+          <span class="chip chip-chapter" hidden></span>
+          <span class="chip chip-sim" hidden></span>
+        </div>
+        <div class="result-actions" role="group" aria-label="Hadith actions">
+          <button class="icon-btn copy-link-btn" type="button" title="Copy share link" aria-label="Copy share link">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M10 13a5 5 0 0 0 7.07 0l3-3a5 5 0 0 0-7.07-7.07l-1.5 1.5"/>
+              <path d="M14 11a5 5 0 0 0-7.07 0l-3 3a5 5 0 0 0 7.07 7.07l1.5-1.5"/>
+            </svg>
+          </button>
+          <button class="icon-btn copy-text-btn" type="button" title="Copy hadith text" aria-label="Copy hadith text">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="9" y="9" width="13" height="13" rx="2"/>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+            </svg>
+          </button>
+          <a class="icon-btn open-link" target="_blank" rel="noopener" title="Open in new tab" aria-label="Open in new tab">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+              <polyline points="15 3 21 3 21 9"/>
+              <line x1="10" y1="14" x2="21" y2="3"/>
+            </svg>
+          </a>
+        </div>
+      </header>
+
+      <p class="result-narrator" hidden></p>
+
+      <div class="result-body">
+        <div class="english-text"></div>
+        <button class="expand-btn" type="button" hidden>Show more</button>
       </div>
-      <h3 class="result-title"></h3>
-      <p class="result-excerpt"></p>
-      <button class="btn btn-outline toggle-btn" type="button">Show full text</button>
-      <div class="result-full" hidden></div>
-      <div class="result-actions">
-        <button class="btn btn-outline copy-link-btn" type="button">Copy Link</button>
-        <button class="btn btn-outline copy-text-btn" type="button">Copy Text</button>
+
+      <div class="arabic-block" hidden>
+        <p class="arabic-text" dir="rtl" lang="ar"></p>
       </div>
+
+      <footer class="result-footer">
+        <span class="chip chip-dbid"></span>
+        <span class="chip chip-prov" hidden></span>
+      </footer>
     </article>
   </template>
 
   <script src="script.js"></script>
 </body>
 </html>
-
