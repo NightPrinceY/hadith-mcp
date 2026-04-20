@@ -8,6 +8,8 @@ from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
+import json
+
 import anyio
 import numpy as np
 from dotenv import load_dotenv
@@ -127,17 +129,23 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         cfg.search_cache_max_entries,
     )
     grounding = GroundingState()
+    state = {
+        "store": store,
+        "config": cfg,
+        "embeddings": emb_index,
+        "openai": openai_client,
+        "grounding": grounding,
+        "search_rate_limiter": rate_limiter,
+        "search_cache": search_cache,
+    }
+    server._hadith_state = state  # type: ignore[attr-defined]
     try:
-        yield {
-            "store": store,
-            "config": cfg,
-            "embeddings": emb_index,
-            "openai": openai_client,
-            "grounding": grounding,
-            "search_rate_limiter": rate_limiter,
-            "search_cache": search_cache,
-        }
+        yield state
     finally:
+        try:
+            server._hadith_state = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
         store.close()
         logger.info("closed database connection")
 
@@ -479,6 +487,196 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             content=_icon_bytes,
             media_type="image/png",
             headers={"Cache-Control": "public, max-age=604800, immutable"},
+        )
+
+    # --- public REST API backing the search.hadith-mcp.org frontend ---
+    #
+    # Lives on the same FastMCP process; exposed at api.hadith-mcp.org via nginx
+    # proxying /api/* to this backend. CORS is handled at the nginx layer.
+
+    def _api_json(data: Any, status: int = 200) -> Response:
+        return Response(
+            content=json.dumps(data).encode("utf-8"),
+            status_code=status,
+            media_type="application/json; charset=utf-8",
+        )
+
+    def _api_state() -> dict[str, Any] | None:
+        return getattr(mcp, "_hadith_state", None)
+
+    def _api_client_key(request: Request) -> str:
+        host = None
+        if request.client is not None:
+            host = request.client.host
+        xff = request.headers.get("x-forwarded-for")
+        if xff:
+            host = xff.split(",")[0].strip() or host
+        return f"ip:{host or 'unknown'}"
+
+    def _api_hadith_item(row: dict[str, Any]) -> dict[str, Any]:
+        out = dict(row)
+        if not out.get("english_excerpt"):
+            out["english_excerpt"] = (out.get("english") or "")[:280]
+        out["url"] = _hadith_url(int(out["id"]))
+        return out
+
+    def _api_keyword_payload(
+        store: HadithStore,
+        q: str,
+        limit: int,
+        coll_filter: str | None,
+        note: str | None,
+    ) -> Response:
+        kw_slug: str | None = None
+        if coll_filter:
+            kw_slug = store.resolve_collection_slug(coll_filter) or coll_filter
+        rows_small = store.search_hadith(q, limit=limit, collection_slug=kw_slug)
+        ids = [int(r["id"]) for r in rows_small]
+        rows_full = store.fetch_hadiths_by_ids(ids) if ids else []
+        full_by_id = {int(r["id"]): r for r in rows_full}
+        results: list[dict[str, Any]] = []
+        for r in rows_small:
+            rid = int(r["id"])
+            merged = dict(full_by_id.get(rid, {}))
+            merged.update({k: v for k, v in r.items() if v is not None})
+            item = _api_hadith_item(merged)
+            item["similarity"] = None
+            results.append(item)
+        return _api_json({"results": results, "mode": "keyword", "note": note})
+
+    @mcp.custom_route("/api/collections", methods=["GET", "HEAD"])
+    async def api_collections(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            return _api_json({"error": "server starting"}, status=503)
+        store: HadithStore = state["store"]
+        return _api_json({"collections": store.list_collections()})
+
+    @mcp.custom_route("/api/hadith/{hadith_id:int}", methods=["GET", "HEAD"])
+    async def api_hadith_by_id(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            return _api_json({"error": "server starting", "hadith": None}, status=503)
+        store: HadithStore = state["store"]
+        try:
+            hid = int(request.path_params["hadith_id"])
+        except (KeyError, ValueError, TypeError):
+            return _api_json({"error": "invalid_id", "hadith": None}, status=400)
+        row = store.fetch_hadith(hadith_id=hid)
+        if row is None:
+            return _api_json({"error": "not_found", "hadith": None}, status=404)
+        return _api_json({"hadith": _api_hadith_item(row)})
+
+    @mcp.custom_route("/api/hadith/{slug:str}/{id_in_book:int}", methods=["GET", "HEAD"])
+    async def api_hadith_by_collection(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            return _api_json({"error": "server starting", "hadith": None}, status=503)
+        store: HadithStore = state["store"]
+        slug_raw = str(request.path_params.get("slug") or "").strip()
+        try:
+            id_in_book = int(request.path_params["id_in_book"])
+        except (KeyError, ValueError, TypeError):
+            return _api_json({"error": "invalid_id", "hadith": None}, status=400)
+        if not slug_raw:
+            return _api_json({"error": "invalid_slug", "hadith": None}, status=400)
+        slug = store.resolve_collection_slug(slug_raw) or slug_raw
+        row = store.fetch_hadith(collection_slug=slug, id_in_book=id_in_book)
+        if row is None:
+            return _api_json({"error": "not_found", "hadith": None}, status=404)
+        return _api_json({"hadith": _api_hadith_item(row)})
+
+    @mcp.custom_route("/api/search", methods=["GET", "HEAD"])
+    async def api_search(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            return _api_json({"results": [], "mode": "none", "note": "server starting"}, status=503)
+        store: HadithStore = state["store"]
+        cfg_local: AppConfig = state["config"]
+        idx = state.get("embeddings")
+        client = state.get("openai")
+        cache = state.get("search_cache")
+        rl = state.get("search_rate_limiter")
+
+        q = (request.query_params.get("q") or "").strip()
+        if len(q) < 2:
+            return _api_json(
+                {"results": [], "mode": "none", "note": "query too short"},
+                status=400,
+            )
+        try:
+            limit = max(1, min(int(request.query_params.get("limit") or 20), 100))
+        except (TypeError, ValueError):
+            limit = 20
+        coll_filter = (request.query_params.get("collection") or "").strip() or None
+
+        client_key = _api_client_key(request)
+
+        # Semantic path (if configured and allowed by rate limit)
+        if idx is not None and client is not None:
+            if rl is not None and not rl.allow(client_key):
+                return _api_keyword_payload(
+                    store, q, limit, coll_filter, note="rate_limited; keyword fallback"
+                )
+
+            cache_key = (q.lower(), limit, coll_filter or "", cfg_local.query_embedding_model)
+            if cache is not None:
+                hit = cache.get(cache_key)
+                if hit is not None:
+                    return _api_json(
+                        {"results": hit, "mode": "semantic", "note": "cache"},
+                    )
+
+            coll_id: int | None = None
+            if coll_filter:
+                slug = store.resolve_collection_slug(coll_filter) or coll_filter
+                coll_id = store.get_collection_id(slug)
+            model = cfg_local.query_embedding_model
+
+            def _embed() -> np.ndarray:
+                r = client.embeddings.create(model=model, input=q)
+                return np.asarray(r.data[0].embedding, dtype=np.float32)
+
+            try:
+                qv = await anyio.to_thread.run_sync(_embed)
+            except Exception as exc:  # noqa: BLE001
+                if should_fallback_to_keyword(exc):
+                    logger.warning("api /search OpenAI fallback: %s", exc)
+                    return _api_keyword_payload(
+                        store, q, limit, coll_filter, note=f"openai_error; keyword fallback ({exc})"
+                    )
+                raise
+
+            if int(qv.shape[0]) != int(idx.mat.shape[1]):
+                logger.warning(
+                    "api /search dim mismatch qv=%s idx=%s model=%s",
+                    qv.shape[0],
+                    idx.mat.shape[1],
+                    model,
+                )
+                return _api_keyword_payload(
+                    store, q, limit, coll_filter, note="dim_mismatch; keyword fallback"
+                )
+
+            top = idx.topk(qv, limit, collection_id=coll_id)
+            ids = [i for i, _ in top]
+            scores = {i: s for i, s in top}
+            rows = store.fetch_hadiths_by_ids(ids)
+            results: list[dict[str, Any]] = []
+            for r in rows:
+                item = _api_hadith_item(r)
+                item["similarity"] = float(scores[int(r["id"])])
+                results.append(item)
+            if cache is not None:
+                cache.set(cache_key, results)
+            return _api_json({"results": results, "mode": "semantic", "note": None})
+
+        return _api_keyword_payload(
+            store,
+            q,
+            limit,
+            coll_filter,
+            note="semantic unavailable (missing index or OPENAI_API_KEY); used keyword",
         )
 
     return mcp

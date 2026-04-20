@@ -1,6 +1,12 @@
 (() => {
   "use strict";
 
+  // Public REST API backing this frontend. Overridable via
+  //   window.HADITH_API_BASE = "https://api.example.com";
+  // (set in HTML before this script loads) for local dev / staging.
+  const API_BASE = (typeof window !== "undefined" && window.HADITH_API_BASE)
+    || "https://api.hadith-mcp.org";
+
   const state = {
     query: "",
     page: 1,
@@ -39,7 +45,7 @@
   }
 
   async function loadCollections() {
-    const data = await getJson("/api/collections");
+    const data = await getJson(`${API_BASE}/api/collections`);
     for (const c of data.collections || []) {
       const option = document.createElement("option");
       option.value = c.slug;
@@ -57,18 +63,18 @@
     }
     const lookup = parseLookup(q);
     if (lookup?.kind === "global") {
-      const data = await getJson(`/api/hadith/${lookup.id}`);
-      state.results = [data.hadith];
+      const data = await getJson(`${API_BASE}/api/hadith/${lookup.id}`);
+      state.results = data.hadith ? [data.hadith] : [];
       return;
     }
     if (lookup?.kind === "collection") {
-      const data = await getJson(`/api/hadith/${lookup.slug}/${lookup.idInBook}`);
-      state.results = [data.hadith];
+      const data = await getJson(`${API_BASE}/api/hadith/${encodeURIComponent(lookup.slug)}/${lookup.idInBook}`);
+      state.results = data.hadith ? [data.hadith] : [];
       return;
     }
     const params = new URLSearchParams({ q, limit: "100" });
     if (collectionSelect.value) params.set("collection", collectionSelect.value);
-    const data = await getJson(`/api/search?${params.toString()}`);
+    const data = await getJson(`${API_BASE}/api/search?${params.toString()}`);
     state.results = data.results || [];
   }
 
@@ -176,8 +182,29 @@
     render();
   });
 
-  loadCollections().then(render).catch(() => {
-    statsText.textContent = "Could not load collections.";
-  });
+  function bootstrapFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    const q = params.get("q");
+    if (id && /^\d+$/.test(id.trim())) {
+      searchInput.value = `#${id.trim()}`;
+      submit();
+      return true;
+    }
+    if (q && q.trim()) {
+      searchInput.value = q.trim();
+      submit();
+      return true;
+    }
+    return false;
+  }
+
+  loadCollections()
+    .catch(() => {
+      statsText.textContent = "Could not load collections.";
+    })
+    .finally(() => {
+      if (!bootstrapFromUrl()) render();
+    });
 })();
 
