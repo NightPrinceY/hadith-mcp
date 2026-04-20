@@ -419,9 +419,9 @@
           <button class="icon-btn copy-text-btn" type="button" title="Copy hadith text" aria-label="Copy hadith text">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           </button>
-          <a class="icon-btn open-link" target="_blank" rel="noopener" title="Open in hadith search" aria-label="Open in hadith search">
+          <button class="icon-btn open-link" type="button" title="Open in hadith search" aria-label="Open in hadith search">
             <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-          </a>
+          </button>
         </div>
       </header>
       <p class="result-narrator" hidden></p>
@@ -491,17 +491,44 @@
         return item.english || item.english_excerpt || "";
       }
 
-      async function copyToClipboard(text, btn) {
+      async function copyToClipboard(text, btn, { silent = false } = {}) {
+        let ok = false;
         try {
           await navigator.clipboard.writeText(text);
-          if (btn) {
-            btn.classList.add("is-copied");
-            setTimeout(() => btn.classList.remove("is-copied"), 800);
-          }
-          showToast("Copied");
-        } catch {
-          showToast("Copy failed");
+          ok = true;
+        } catch { /* sandboxed iframe — fall through */ }
+        if (!ok) {
+          try {
+            const ta = document.createElement("textarea");
+            ta.value = text;
+            ta.style.cssText = "position:fixed;left:-9999px;top:-9999px;opacity:0";
+            document.body.appendChild(ta);
+            ta.select();
+            ok = document.execCommand("copy");
+            ta.remove();
+          } catch { /* last resort failed */ }
         }
+        if (!silent) {
+          if (ok) {
+            if (btn) {
+              btn.classList.add("is-copied");
+              setTimeout(() => btn.classList.remove("is-copied"), 800);
+            }
+            showToast("Copied");
+          } else {
+            showToast("Copy failed \u2014 open the link manually");
+          }
+        }
+        return ok;
+      }
+
+      async function tryOpenUrl(url) {
+        try {
+          const w = window.open(url, "_blank", "noopener");
+          if (w) return;
+        } catch { /* blocked by sandbox */ }
+        const ok = await copyToClipboard(url, null, { silent: true });
+        showToast(ok ? "Can\u2019t open links here \u2014 URL copied" : "Can\u2019t open links in this host");
       }
 
       let toastTimer = null;
@@ -604,8 +631,11 @@
           block.hidden = false;
         }
 
-        const openLink = card.querySelector(".open-link");
-        openLink.href = item.url || (idForUrl != null ? hadithUrl(idForUrl) : "#");
+        const linkUrl = item.url || (idForUrl != null ? hadithUrl(idForUrl) : "");
+        card.querySelector(".open-link").addEventListener("click", (e) => {
+          e.stopPropagation();
+          if (linkUrl) tryOpenUrl(linkUrl);
+        });
 
         card.querySelector(".copy-link-btn").addEventListener("click", (e) => {
           e.stopPropagation();

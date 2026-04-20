@@ -255,6 +255,22 @@ input:focus, select:focus {
   display: flex;
   gap: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.filters-row label {
+  display: inline;
+  margin-bottom: 0;
+  font-size: 0.88rem;
+  font-weight: 600;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.filters-row select {
+  min-width: 0;
+  flex: 1 1 140px;
+  max-width: 260px;
 }
 
 .btn {
@@ -593,12 +609,59 @@ input:focus, select:focus {
 }
 
 @media (max-width: 760px) {
+  .hero { padding: 36px 18px 24px; }
+  .hero-badge { margin-bottom: 10px; font-size: 0.72rem; padding: 3px 10px; }
+  .hero h1 { font-size: 1.5rem; margin-bottom: 6px; }
+  .hero-sub { font-size: 0.88rem; }
+  .section { padding: 24px 0 48px; }
+  .search-panel { padding: 14px; }
+  .search-panel > label { font-size: 0.84rem; margin-bottom: 6px; }
   .search-row { grid-template-columns: 1fr; }
+  .filters-row { gap: 6px 10px; }
+  .filters-row select { max-width: none; flex: 1 1 100%; }
+  .filters-row label { flex-basis: auto; }
   .result-card { padding: 16px; }
   .result-head { flex-direction: column; gap: 8px; }
   .result-actions { align-self: flex-end; }
   .arabic-text { font-size: 1.25rem; line-height: 1.9; }
   .chip-chapter { max-width: 180px; }
+}
+
+/* ─── Detail view (direct lookup by ?id=N) ────────────── */
+
+body.is-detail-mode .search-panel,
+body.is-detail-mode .status-row,
+body.is-detail-mode .hero { display: none; }
+
+.detail-view {
+  margin-top: 8px;
+}
+
+.back-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 20px;
+  font-size: 0.9rem;
+}
+
+.section-heading {
+  margin: 28px 0 14px;
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--clr-text-muted);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+}
+
+/* Cross-ref cards are compact — smaller text, tighter padding */
+.xref-card .english-text {
+  font-size: 0.92rem;
+}
+.xref-card .chip { font-size: 0.74rem; }
+.xref-card { cursor: pointer; }
+.xref-card:hover {
+  border-color: var(--clr-accent);
 }
 
 /* ─── Embedded mode (?app=1) — trims chrome for iframe ───

@@ -4,6 +4,38 @@
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
+  const THEME_KEY = "hadith-theme";
+
+  // ── Theme toggle (manual override of prefers-color-scheme) ──
+  function applyTheme(theme) {
+    const root = document.documentElement;
+    if (theme === "dark" || theme === "light") {
+      root.setAttribute("data-theme", theme);
+    } else {
+      root.removeAttribute("data-theme");
+    }
+  }
+
+  function resolvedTheme() {
+    const saved = localStorage.getItem(THEME_KEY);
+    if (saved === "dark" || saved === "light") return saved;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "dark"
+      : "light";
+  }
+
+  function toggleTheme() {
+    const next = resolvedTheme() === "dark" ? "light" : "dark";
+    localStorage.setItem(THEME_KEY, next);
+    applyTheme(next);
+  }
+
+  const savedTheme = localStorage.getItem(THEME_KEY);
+  if (savedTheme === "dark" || savedTheme === "light") applyTheme(savedTheme);
+
+  const themeBtn = $("#themeToggle");
+  if (themeBtn) themeBtn.addEventListener("click", toggleTheme);
+
   // ── Nav scroll shadow ──
   const nav = $("#topNav");
   const onScroll = () => nav.classList.toggle("scrolled", window.scrollY > 10);

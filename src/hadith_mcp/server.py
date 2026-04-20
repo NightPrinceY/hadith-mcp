@@ -887,6 +887,23 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             return _api_json({"error": "not_found", "hadith": None}, status=404)
         return _api_json({"hadith": _api_hadith_item(row)})
 
+    @mcp.custom_route("/api/hadith/{hadith_id:int}/cross-references", methods=["GET", "HEAD"])
+    async def api_cross_references(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            return _api_json({"error": "server starting", "cross_references": []}, status=503)
+        store: HadithStore = state["store"]
+        try:
+            hid = int(request.path_params["hadith_id"])
+        except (KeyError, ValueError, TypeError):
+            return _api_json({"error": "invalid_id", "cross_references": []}, status=400)
+        try:
+            lim = min(int(request.query_params.get("limit", 40)), 100)
+        except (ValueError, TypeError):
+            lim = 40
+        matches = [_add_match_url(m) for m in store.fetch_cross_references(hid, limit=lim)]
+        return _api_json({"cross_references": matches})
+
     @mcp.custom_route("/api/hadith/{slug:str}/{id_in_book:int}", methods=["GET", "HEAD"])
     async def api_hadith_by_collection(request: Request) -> Response:
         state = _api_state()

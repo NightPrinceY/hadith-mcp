@@ -49,6 +49,7 @@
   const searchBtn = document.getElementById("searchBtn");
   const clearBtn = document.getElementById("clearBtn");
   const collectionSelect = document.getElementById("collectionSelect");
+  const provenanceSelect = document.getElementById("provenanceSelect");
   const statsText = document.getElementById("statsText");
   const resultsList = document.getElementById("resultsList");
   const pagination = document.getElementById("pagination");
@@ -57,6 +58,14 @@
   const pageText = document.getElementById("pageText");
   const resultTemplate = document.getElementById("resultTemplate");
   const loadingIndicator = document.getElementById("loadingIndicator");
+
+  // Detail view elements
+  const detailView = document.getElementById("detailView");
+  const detailCard = document.getElementById("detailCard");
+  const backToSearchBtn = document.getElementById("backToSearch");
+  const crossRefsSection = document.getElementById("crossRefsSection");
+  const crossRefsHeading = document.getElementById("crossRefsHeading");
+  const crossRefsList = document.getElementById("crossRefsList");
 
   function setLoading(isLoading) {
     if (!loadingIndicator) return;
@@ -292,10 +301,109 @@
     return card;
   }
 
+  // ─── Detail view (single hadith + cross-references) ─────
+
+  function enterDetailMode() {
+    document.body.classList.add("is-detail-mode");
+    resultsList.hidden = true;
+    pagination.hidden = true;
+    loadingIndicator && (loadingIndicator.hidden = true);
+    detailView.hidden = false;
+  }
+
+  function exitDetailMode() {
+    document.body.classList.remove("is-detail-mode");
+    detailView.hidden = true;
+    detailCard.replaceChildren();
+    crossRefsList.replaceChildren();
+    crossRefsSection.hidden = true;
+    resultsList.hidden = false;
+    history.replaceState(null, "", location.pathname);
+    searchInput.value = "";
+    state.query = "";
+    state.results = [];
+    state.singleLookup = false;
+    state.page = 1;
+    render();
+    window.scrollTo({ top: 0 });
+  }
+
+  function renderCrossRefCard(xref) {
+    const item = {
+      id: xref.matched_hadith_id,
+      id_in_book: xref.id_in_book,
+      collection_slug: xref.collection_slug,
+      collection_name_english: xref.collection_slug,
+      english: xref.english_excerpt || "",
+      english_excerpt: xref.english_excerpt || "",
+      similarity: xref.similarity,
+      url: xref.url,
+    };
+    const card = renderCard(item);
+    card.classList.add("xref-card");
+    card.addEventListener("click", (e) => {
+      if (e.target.closest(".icon-btn, .expand-btn, a")) return;
+      openDetailView(xref.matched_hadith_id);
+    });
+    return card;
+  }
+
+  async function openDetailView(hadithId) {
+    enterDetailMode();
+    detailCard.innerHTML = '<div class="loading-indicator"><span class="spinner" aria-hidden="true"></span><span class="loading-text">Loading…</span></div>';
+    crossRefsSection.hidden = true;
+
+    const currentId = new URLSearchParams(location.search).get("id");
+    if (currentId !== String(hadithId)) {
+      history.pushState({ hadithId }, "", `?id=${hadithId}`);
+    }
+
+    try {
+      const [hadithData, xrefData] = await Promise.all([
+        getJson(`${API_BASE}/api/hadith/${hadithId}`),
+        getJson(`${API_BASE}/api/hadith/${hadithId}/cross-references`),
+      ]);
+
+      if (!hadithData.hadith) {
+        detailCard.innerHTML = '<div class="empty">Hadith not found.</div>';
+        return;
+      }
+
+      detailCard.replaceChildren(renderCard(hadithData.hadith, { detail: true }));
+
+      const refs = xrefData.cross_references || [];
+      if (refs.length) {
+        crossRefsHeading.textContent = `Cross-references (${refs.length})`;
+        const frag = document.createDocumentFragment();
+        for (const xref of refs) frag.appendChild(renderCrossRefCard(xref));
+        crossRefsList.replaceChildren(frag);
+        crossRefsSection.hidden = false;
+      }
+
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    } catch (err) {
+      detailCard.innerHTML = `<div class="empty">Failed to load: ${String(err)}</div>`;
+    }
+  }
+
+  backToSearchBtn?.addEventListener("click", exitDetailMode);
+
+  function filteredResults() {
+    const prov = provenanceSelect?.value || "";
+    if (!prov) return state.results;
+    return state.results.filter((r) => (r.provenance || "") === prov);
+  }
+
   function render() {
-    const total = state.results.length;
+    const filtered = filteredResults();
+    const total = filtered.length;
     if (total === 0) {
-      statsText.textContent = state.query ? "No results found." : "Enter a query to start.";
+      const provActive = provenanceSelect?.value;
+      if (state.results.length && provActive) {
+        statsText.textContent = "No results match the selected provenance filter.";
+      } else {
+        statsText.textContent = state.query ? "No results found." : "Enter a query to start.";
+      }
       resultsList.innerHTML = '<div class="empty">No hadith results.</div>';
       pagination.hidden = true;
       return;
@@ -304,7 +412,7 @@
     // Single-item lookup: render in focused "detail" mode, no pagination.
     if (state.singleLookup && total === 1) {
       statsText.textContent = "Direct lookup.";
-      resultsList.replaceChildren(renderCard(state.results[0], { detail: true }));
+      resultsList.replaceChildren(renderCard(filtered[0], { detail: true }));
       pagination.hidden = true;
       return;
     }
@@ -313,7 +421,7 @@
     state.page = Math.min(state.page, pages);
     const start = (state.page - 1) * state.perPage;
     const end = Math.min(total, start + state.perPage);
-    const rows = state.results.slice(start, end);
+    const rows = filtered.slice(start, end);
     statsText.textContent = `Showing ${start + 1}–${end} of ${total} result(s).`;
 
     const frag = document.createDocumentFragment();
@@ -329,6 +437,23 @@
   async function submit() {
     state.query = searchInput.value.trim();
     state.page = 1;
+
+    // Route direct lookups (#id, collection number) to the detail view
+    const lookup = parseLookup(state.query);
+    if (lookup?.kind === "global") {
+      openDetailView(lookup.id);
+      return;
+    }
+    if (lookup?.kind === "collection") {
+      try {
+        const data = await getJson(`${API_BASE}/api/hadith/${encodeURIComponent(lookup.slug)}/${lookup.idInBook}`);
+        if (data.hadith?.id != null) {
+          openDetailView(data.hadith.id);
+          return;
+        }
+      } catch { /* fall through to normal search */ }
+    }
+
     setLoading(true);
     try {
       await performSearch();
@@ -352,10 +477,15 @@
     state.singleLookup = false;
     state.page = 1;
     searchInput.value = "";
+    if (provenanceSelect) provenanceSelect.value = "";
     render();
   });
   collectionSelect.addEventListener("change", () => {
     if (state.query) submit();
+  });
+  provenanceSelect?.addEventListener("change", () => {
+    state.page = 1;
+    if (state.results.length) render();
   });
   prevPageBtn.addEventListener("click", () => {
     state.page -= 1;
@@ -370,19 +500,34 @@
     const params = new URLSearchParams(window.location.search);
     if (params.get("app") === "1") document.body.classList.add("is-embedded");
 
+    // Direct ID lookup → detail view with cross-references
+    const id = params.get("id");
+    if (id && /^\d+$/.test(id.trim())) {
+      openDetailView(Number.parseInt(id.trim(), 10));
+      return true;
+    }
+
+    // Collection + number → fetch the hadith to get its DB id, then detail view
     const collection = (params.get("collection") || "").trim().toLowerCase();
     const number = (params.get("number") || "").trim();
     if (collection && /^\d+$/.test(number)) {
-      searchInput.value = `${collection} ${number}`;
-      submit();
+      (async () => {
+        try {
+          const data = await getJson(`${API_BASE}/api/hadith/${encodeURIComponent(collection)}/${number}`);
+          if (data.hadith?.id != null) {
+            openDetailView(data.hadith.id);
+          } else {
+            searchInput.value = `${collection} ${number}`;
+            submit();
+          }
+        } catch {
+          searchInput.value = `${collection} ${number}`;
+          submit();
+        }
+      })();
       return true;
     }
-    const id = params.get("id");
-    if (id && /^\d+$/.test(id.trim())) {
-      searchInput.value = `#${id.trim()}`;
-      submit();
-      return true;
-    }
+
     const q = params.get("q");
     if (q && q.trim()) {
       searchInput.value = q.trim();
@@ -391,6 +536,16 @@
     }
     return false;
   }
+
+  window.addEventListener("popstate", () => {
+    const params = new URLSearchParams(window.location.search);
+    const id = params.get("id");
+    if (id && /^\d+$/.test(id.trim())) {
+      openDetailView(Number.parseInt(id.trim(), 10));
+    } else if (document.body.classList.contains("is-detail-mode")) {
+      exitDetailMode();
+    }
+  });
 
   const themeBtn = document.getElementById("themeToggle");
   themeBtn?.addEventListener("click", toggleTheme);
