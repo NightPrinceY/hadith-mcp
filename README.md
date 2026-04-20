@@ -21,7 +21,9 @@ If you ship a product or paper, keep upstream attribution visible (dataset autho
 | `scripts/merge_embedding_checkpoints.py` | Replay JSONL embedding checkpoints into `hadith.db` after crashes or restores                    |
 | `scripts/compute_crossref.py`            | Recompute `cross_references` + `provenance` only (does **not** re-import JSON; safe after embed) |
 | `src/hadith_mcp/pipeline/`               | Loaders, schema, embed, cross-reference, provenance logic                                        |
-| `src/hadith_mcp/server.py`               | FastMCP app (`list_collections`, `fetch_hadith`, `search_hadith`, cross-refs, grounding rules)   |
+| `src/hadith_mcp/server.py`               | FastMCP app: MCP tools + a small REST surface (`/api/collections`, `/api/hadith/{id}`, `/api/hadith/{slug}/{n}`, `/api/search`) reusing the same store and embedding index |
+| `search/`                                | Static search frontend (HTML/CSS/JS) deployed standalone (e.g. `search.hadith-mcp.org`)          |
+| `site/`                                  | Static landing page for the main domain                                                          |
 | `config.yml`                             | Optional default DB path (overridden by `HADITH_MCP_DB_PATH`)                                    |
 
 Large reference trees **`hadith-json-main/`** and **`quran-mcp-master/`** are listed in `.gitignore`. Clone or unpack **[hadith-json](https://github.com/AhmedBaset/hadith-json)** locally (for example as `hadith-json-main/`) or pass **`--data-dir`** to `build_db.py`.
@@ -93,6 +95,19 @@ hadith-mcp --transport http
 ```
 
 **Tools (summary):** `fetch_grounding_rules` returns full text once per MCP session (then a short repeat unless `force_full=True`); pass returned `nonce` only when you need to disambiguate errors. `fetch_hadith` accepts global `hadith_id` **or** `collection` (slug or English name) + `hadith_number` (int, or string range like `1-5`) with optional `include_cross_references`. `search_hadith` defaults to **semantic** search (loads all embeddings at startup, embeds the query with the configured **query embedding model**); use `mode=keyword` for SQL substring search, or `mode=both`. Semantic search needs **`OPENAI_API_KEY`** and a database whose rows include embeddings. If OpenAI returns quota/billing/rate-limit errors (or the query vector size does not match the DB), the server **falls back to keyword search** instead of failing. Optional **per-client rate limits** and an **LRU query cache** reduce cost and abuse (see `config.yml` / `.env.example`).
+
+**Citation URLs.** `fetch_hadith`, `search_hadith`, and `fetch_cross_references` attach a **`url`** field to each hadith or cross-reference row pointing at the search frontend (`https://search.hadith-mcp.org/?id=<db_id>` by default, overridable via **`HADITH_SEARCH_APP_URL`**). The server's MCP instructions tell assistants to always surface this link alongside citations and to never fabricate links to external hadith sites (sunnah.com, etc.).
+
+### 5) Public search frontend and REST API
+
+The repo ships a small static search app in **`search/`** and an HTTP REST surface on the same FastMCP process, intended to be deployed as two subdomains (e.g. `search.hadith-mcp.org` and `api.hadith-mcp.org`) with nginx / Caddy proxying `/api/*` to the FastMCP port.
+
+- **Frontend (`search/`):** plain HTML/CSS/JS, no build step. Bootstraps from `?id=<db_id>` or `?q=<query>` on load, so the URLs MCP tools emit resolve directly. The API base defaults to `https://api.hadith-mcp.org`; override in the browser via `window.HADITH_API_BASE` (set before `script.js` loads) for local or staging deployments.
+- **REST endpoints** (same process, mounted via `@mcp.custom_route`):
+  - `GET /api/collections` → `{collections: [...]}`
+  - `GET /api/hadith/{hadith_id}` → `{hadith: {...}}`
+  - `GET /api/hadith/{slug}/{id_in_book}` → `{hadith: {...}}`
+  - `GET /api/search?q=&limit=&collection=` → `{results, mode, note}`; semantic by default with the same keyword fallback behavior as the MCP tool. Shares `HADITH_MCP_RATE_LIMIT_SEARCH_RPM` and the query cache with MCP clients, so one budget covers both surfaces.
 
 ## Configuration
 
