@@ -71,6 +71,11 @@
 
 * { box-sizing: border-box; }
 
+/* Ensure the HTML `hidden` attribute always wins — our own .chip / .result-*
+   rules set `display: inline-flex` / `flex`, which otherwise override the
+   UA `[hidden] { display: none }` default and leave empty chips visible. */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--font-sans);

@@ -38,7 +38,10 @@ _MAX_HADITH_RANGE = 25
 _SEARCH_APP_BASE_URL = os.environ.get("HADITH_SEARCH_APP_URL", "https://search.hadith-mcp.org").strip().rstrip("/")
 
 _HADITH_APP_MIME = "text/html;profile=mcp-app"
-_HADITH_APP_HTML_PATH = Path(__file__).parent / "assets" / "hadith_app.html"
+_HADITH_APP_ASSETS_DIR = Path(__file__).parent / "assets"
+_HADITH_APP_HTML_PATH = _HADITH_APP_ASSETS_DIR / "hadith_app.html"
+_HADITH_APP_SDK_PATH = _HADITH_APP_ASSETS_DIR / "ext-apps.bundle.js"
+_HADITH_APP_SDK_PLACEHOLDER = "/*__SDK_BUNDLE__*/"
 
 
 def _search_client_key(ctx: Context) -> str:
@@ -698,12 +701,35 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
 
     _HADITH_APP_HTML: str | None = None
     if _HADITH_APP_HTML_PATH.is_file():
-        _HADITH_APP_HTML = _HADITH_APP_HTML_PATH.read_text(encoding="utf-8")
-        logger.info(
-            "loaded hadith app html (%d bytes) from %s",
-            len(_HADITH_APP_HTML),
-            _HADITH_APP_HTML_PATH,
-        )
+        raw_html = _HADITH_APP_HTML_PATH.read_text(encoding="utf-8")
+        if _HADITH_APP_SDK_PATH.is_file():
+            sdk_js = _HADITH_APP_SDK_PATH.read_text(encoding="utf-8")
+            if _HADITH_APP_SDK_PLACEHOLDER not in raw_html:
+                logger.warning(
+                    "hadith app html is missing the SDK placeholder %r; "
+                    "the reader will render with a missing-SDK error",
+                    _HADITH_APP_SDK_PLACEHOLDER,
+                )
+                _HADITH_APP_HTML = raw_html
+            else:
+                # str.replace is a literal substitution (no regex / backref
+                # handling), so it's safe to splice the JS body verbatim.
+                _HADITH_APP_HTML = raw_html.replace(
+                    _HADITH_APP_SDK_PLACEHOLDER, sdk_js, 1
+                )
+                logger.info(
+                    "loaded hadith app html (%d bytes, sdk=%d bytes) from %s",
+                    len(_HADITH_APP_HTML),
+                    len(sdk_js),
+                    _HADITH_APP_HTML_PATH,
+                )
+        else:
+            logger.warning(
+                "hadith app SDK bundle missing at %s; reader will show a "
+                "missing-SDK error. Run scripts/fetch_ext_apps.py to vendor it.",
+                _HADITH_APP_SDK_PATH,
+            )
+            _HADITH_APP_HTML = raw_html
     else:
         logger.warning("hadith app html missing at %s", _HADITH_APP_HTML_PATH)
 
@@ -729,13 +755,10 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 meta={
                     "ui": {
                         "csp": {
-                            "resourceDomains": [
-                                "https://search.hadith-mcp.org",
-                                "https://api.hadith-mcp.org",
-                                "https://esm.sh",
-                                "https://fonts.googleapis.com",
-                                "https://fonts.gstatic.com",
-                            ],
+                            # Self-contained app: CSS, JS, and the ext-apps
+                            # SDK are all inlined. No external origins are
+                            # needed at runtime.
+                            "resourceDomains": [],
                         },
                     },
                 },
