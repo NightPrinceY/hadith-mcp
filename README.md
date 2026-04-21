@@ -21,6 +21,7 @@ If you ship a product or paper, keep upstream attribution visible (dataset autho
 | `scripts/merge_embedding_checkpoints.py` | Replay JSONL embedding checkpoints into `hadith.db` after crashes or restores                    |
 | `scripts/compute_crossref.py`            | Recompute `cross_references` + `provenance` only (does **not** re-import JSON; safe after embed) |
 | `scripts/fetch_ext_apps.py`              | Vendor / refresh `@modelcontextprotocol/ext-apps` as a classic script (sets `window.__hadithMcpSdk`) used by the interactive reader |
+| `scripts/generate_search_sitemap.py`     | Regenerate `search/sitemap.xml` (index) + `search/sitemaps/*.xml` (~50k `?id=` URLs) from `data/hadith.db` for SEO after DB changes |
 | `src/hadith_mcp/pipeline/`               | Loaders, schema, embed, cross-reference, provenance logic                                        |
 | `src/hadith_mcp/server.py`               | FastMCP app: MCP tools + a small REST surface (`/api/collections`, `/api/hadith/{id}`, `/api/hadith/{slug}/{n}`, `/api/search`) reusing the same store and embedding index |
 | `src/hadith_mcp/assets/hadith_app.html`  | Self-contained MCP App UI template (inline CSS + app logic, system fonts only) served at `ui://hadith.html` for the `show_hadith` tool |
@@ -107,7 +108,7 @@ hadith-mcp --transport http
 
 The repo ships a small static search app in **`search/`** and an HTTP REST surface on the same FastMCP process, intended to be deployed as two subdomains (e.g. `search.hadith-mcp.org` and `api.hadith-mcp.org`) with nginx / Caddy proxying `/api/*` to the FastMCP port.
 
-- **Frontend (`search/`):** plain HTML/CSS/JS, no build step. Bootstraps from `?id=<db_id>` or `?q=<query>` on load, so the URLs MCP tools emit resolve directly. The API base defaults to `https://api.hadith-mcp.org`; override in the browser via `window.HADITH_API_BASE` (set before `script.js` loads) for local or staging deployments.
+- **Frontend (`search/`):** plain HTML/CSS/JS, no build step. Bootstraps from `?id=<db_id>` or `?q=<query>` on load, so the URLs MCP tools emit resolve directly. The API base defaults to `https://api.hadith-mcp.org`; override in the browser via `window.HADITH_API_BASE` (set before `script.js` loads) for local or staging deployments. **`search/sitemap.xml`** is a sitemap index; per-collection URL lists live under **`search/sitemaps/`** — regenerate with `python3 scripts/generate_search_sitemap.py` after rebuilding the database.
 - **REST endpoints** (same process, mounted via `@mcp.custom_route`):
   - `GET /api/collections` → `{collections: [...]}`
   - `GET /api/hadith/{hadith_id}` → `{hadith: {...}}`
