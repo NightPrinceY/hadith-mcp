@@ -106,11 +106,48 @@
 
     .search-form {
       display: grid;
-      grid-template-columns: 1fr auto auto;
+      grid-template-columns: 7fr 3fr;
       gap: 8px;
       max-width: 880px;
       margin: 0 auto;
-      align-items: center;
+      align-items: stretch;
+    }
+
+    .search-form .btn-primary {
+      min-height: 100%;
+      white-space: nowrap;
+    }
+
+    /* Subtle escape hatch when the in-widget search is not enough */
+    .search-external-btn {
+      display: block;
+      width: 100%;
+      max-width: 880px;
+      margin: 14px auto 0;
+      padding: 8px 12px;
+      font-size: 0.8rem;
+      font-weight: 500;
+      color: var(--clr-text-muted);
+      background: transparent;
+      border: 1px dashed var(--clr-border);
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      text-align: center;
+      line-height: 1.45;
+      transition: border-color 0.15s ease, color 0.15s ease,
+        background 0.15s ease;
+    }
+
+    .search-external-btn:hover {
+      color: var(--clr-accent);
+      border-color: var(--clr-accent);
+      background: color-mix(in srgb, var(--clr-accent) 8%, transparent);
+    }
+
+    .search-external-btn:focus-visible {
+      outline: none;
+      border-color: var(--clr-accent);
+      box-shadow: 0 0 0 3px color-mix(in srgb, var(--clr-accent) 22%, transparent);
     }
 
     input, select, button { font: inherit; }
@@ -378,7 +415,6 @@
     .toast.is-visible { opacity: 1; transform: translateX(-50%) translateY(0); }
 
     @media (max-width: 640px) {
-      .search-form { grid-template-columns: 1fr; }
       .result-card { padding: 14px; }
       .arabic-text { font-size: 1.2rem; line-height: 1.9; }
       .chip-chapter { max-width: 160px; }
@@ -390,9 +426,6 @@
     <header class="app-bar">
       <form id="searchForm" class="search-form" role="search">
         <input id="q" type="search" placeholder="Search hadith, #id, or bukhari 5678" aria-label="Hadith search" />
-        <select id="coll" aria-label="Collection filter">
-          <option value="">All collections</option>
-        </select>
         <button type="submit" class="btn btn-primary">Search</button>
       </form>
     </header>
@@ -450,7 +483,6 @@
       const view = document.getElementById("view");
       const searchForm = document.getElementById("searchForm");
       const qInput = document.getElementById("q");
-      const collSelect = document.getElementById("coll");
       const cardTpl = document.getElementById("cardTpl");
 
       function setMode(mode) {
@@ -462,7 +494,20 @@
       let initialData = null;
       let interactive = true;
       let searchAppBase = "https://search.hadith-mcp.org";
-      let collectionsLoaded = false;
+
+      function searchAppHomeUrl() {
+        const b = String(searchAppBase || "").replace(/\/+$/, "");
+        return `${b}/`;
+      }
+
+      function appendOpenSearchAppButton(parent) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className = "search-external-btn";
+        btn.textContent = "Open hadith search in your browser";
+        btn.addEventListener("click", () => tryOpenUrl(searchAppHomeUrl()));
+        parent.appendChild(btn);
+      }
 
       // ─── Rendering helpers ──────────────────────────────
       const esc = (s) => String(s ?? "")
@@ -665,24 +710,16 @@
         return card;
       }
 
-      function populateCollections(colls) {
-        if (collectionsLoaded || !colls?.length) return;
-        for (const c of colls) {
-          const o = document.createElement("option");
-          o.value = c.slug;
-          o.textContent = c.name_english;
-          collSelect.appendChild(o);
-        }
-        collectionsLoaded = true;
-      }
-
       function renderEmpty() {
         setMode("empty");
-        view.innerHTML = `
-          <div class="empty">
+        view.replaceChildren();
+        const empty = document.createElement("div");
+        empty.className = "empty";
+        empty.innerHTML = `
             <p>Search for a hadith above,<br>
-            or enter a DB id like <code>#6074</code> or a reference like <code>bukhari 5678</code>.</p>
-          </div>`;
+            or enter a DB id like <code>#6074</code> or a reference like <code>bukhari 5678</code>.</p>`;
+        view.appendChild(empty);
+        appendOpenSearchAppButton(view);
       }
 
       function renderDetail(hadith, crossRefs) {
@@ -728,6 +765,7 @@
           empty.className = "empty";
           empty.textContent = "No results.";
           wrap.appendChild(empty);
+          appendOpenSearchAppButton(wrap);
         } else {
           const list = document.createElement("div");
           list.className = "result-list";
@@ -743,12 +781,10 @@
         if (!data) return;
         if (data.search_app_url) searchAppBase = data.search_app_url;
         if (typeof data.interactive === "boolean") interactive = data.interactive;
-        populateCollections(data.collections);
         if (data.kind === "detail" && data.hadith) {
           renderDetail(data.hadith, data.cross_references);
         } else if (data.kind === "search") {
           qInput.value = data.query || "";
-          if (data.collection_filter) collSelect.value = data.collection_filter;
           renderSearch(data.search_results || [], {
             query: data.query,
             note: data.search_note,
@@ -852,17 +888,20 @@
         } else if (lookup?.collection && lookup?.hadith_number != null) {
           lookupByCollection(lookup.collection, lookup.hadith_number);
         } else {
-          runSearch(q, collSelect.value);
+          runSearch(q, null);
         }
       });
 
       // ─── MCP App bootstrap ──────────────────────────────
       if (!sdk || !sdk.App) {
-        view.innerHTML = `
-          <div class="empty">
+        view.replaceChildren();
+        const sdkFail = document.createElement("div");
+        sdkFail.className = "empty";
+        sdkFail.innerHTML = `
             <p>MCP Apps SDK failed to load.<br>
-            Open <a href="https://search.hadith-mcp.org" target="_blank" rel="noopener">search.hadith-mcp.org</a> in your browser instead.</p>
-          </div>`;
+            Use the button below to open the search site in your browser.</p>`;
+        view.appendChild(sdkFail);
+        appendOpenSearchAppButton(view);
         return;
       }
 
