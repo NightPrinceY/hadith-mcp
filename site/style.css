@@ -1050,8 +1050,17 @@ code {
   font-size: .82rem !important;
 }
 
+/* Line break before “Inspired…” only on narrow screens */
+.footer-credit-mobile-break {
+  display: none;
+}
+
 /* ─── Responsive ─── */
 @media (max-width: 768px) {
+  .footer-credit-mobile-break {
+    display: block;
+  }
+
   .nav-toggle {
     display: flex;
   }
