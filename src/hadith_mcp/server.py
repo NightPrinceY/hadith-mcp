@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
@@ -30,6 +31,7 @@ from hadith_mcp.openai_fallback import should_fallback_to_keyword
 from hadith_mcp.query_cache import SearchResponseCache
 from hadith_mcp.rate_limit import RateLimiter
 from hadith_mcp.settings import AppConfig, load_app_config
+from hadith_mcp.stats import StatsTracker
 from hadith_mcp.store import HadithStore
 
 logger = logging.getLogger("hadith_mcp.server")
@@ -65,6 +67,16 @@ def _session_key(ctx: Context) -> str:
     rc = ctx.request_context
     sess = getattr(rc, "session", None) if rc is not None else None
     return hex(id(sess)) if sess is not None else "default"
+
+
+def _record_mcp(ctx: Context, kind: str) -> None:
+    """Count MCP tool usage (search / lookup); client key is coarse (IP when HTTP)."""
+    lc = ctx.lifespan_context
+    if not isinstance(lc, dict):
+        return
+    st = lc.get("stats")
+    if st is not None:
+        st.record("mcp", kind, _search_client_key(ctx))
 
 
 def _hadith_url(hadith_id: int) -> str:
@@ -137,6 +149,7 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         cfg.search_cache_max_entries,
     )
     grounding = GroundingState()
+    stats_tracker = StatsTracker()
     state = {
         "store": store,
         "config": cfg,
@@ -145,6 +158,8 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
         "grounding": grounding,
         "search_rate_limiter": rate_limiter,
         "search_cache": search_cache,
+        "stats": stats_tracker,
+        "stats_boot_mono": time.monotonic(),
     }
     server._hadith_state = state  # type: ignore[attr-defined]
     try:
@@ -152,6 +167,10 @@ async def _lifespan(server: FastMCP) -> AsyncIterator[dict[str, Any]]:
     finally:
         try:
             server._hadith_state = None  # type: ignore[attr-defined]
+        except Exception:
+            pass
+        try:
+            stats_tracker.close()
         except Exception:
             pass
         store.close()
@@ -422,6 +441,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 return {"error": "not_found", "hadith": None, "hadiths": None, "cross_references": None}
             row_out = _add_hadith_url(row)
             crs = _attach_cross([row_out]) if include_cross_references else None
+            _record_mcp(ctx, "lookup")
             return {"error": None, "hadith": row_out, "hadiths": None, "cross_references": crs}
 
         if not coll_raw:
@@ -449,6 +469,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 return {"error": "not_found", "hadith": None, "hadiths": None, "cross_references": None}
             row_out = _add_hadith_url(row)
             crs = _attach_cross([row_out]) if include_cross_references else None
+            _record_mcp(ctx, "lookup")
             return {"error": None, "hadith": row_out, "hadiths": None, "cross_references": crs}
 
         span = abs(end - start) + 1
@@ -464,6 +485,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             return {"error": "not_found", "hadith": None, "hadiths": [], "cross_references": None}
         rows_out = [_add_hadith_url(r) for r in rows]
         crs = _attach_cross(rows_out) if include_cross_references else None
+        _record_mcp(ctx, "lookup")
         return {"error": None, "hadith": None, "hadiths": rows_out, "cross_references": crs}
 
     @mcp.tool()
@@ -488,12 +510,14 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
 
         if mode_l == "keyword":
             kw = _keyword_search(ctx, query, limit, coll_f)
+            _record_mcp(ctx, "search")
             return {"mode": "keyword", "results": kw["results"], "note": None}
 
         if mode_l == "semantic":
             sem = await _semantic_search(ctx, query, limit, coll_f)
             if sem["ok"]:
                 note = "cached_response" if sem.get("cache_hit") else None
+                _record_mcp(ctx, "search")
                 return {"mode": "semantic", "results": sem["results"], "note": note}
             kw = _keyword_search(ctx, query, limit, coll_f)
             reason = sem.get("reason")
@@ -511,6 +535,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 msg = f"OpenAI embedding failed; used keyword search. ({sem.get('openai_message', '')})"
             else:
                 msg = "Semantic search failed; used keyword search."
+            _record_mcp(ctx, "search")
             return {"mode": "keyword_fallback", "results": kw["results"], "note": msg}
 
         sem = await _semantic_search(ctx, query, limit, coll_f)
@@ -521,6 +546,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 f"Semantic leg incomplete ({sem.get('reason', 'unknown')}); "
                 "keyword leg still returned."
             )
+        _record_mcp(ctx, "search")
         return {
             "mode": "both",
             "semantic": sem,
@@ -659,6 +685,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             structured["kind"] = "detail"
             structured["hadith"] = row_out
             structured["cross_references"] = cross_refs
+            _record_mcp(ctx, "lookup")
             return ToolResult(
                 content=[
                     TextContent(
@@ -702,6 +729,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             structured["search_results"] = results
             structured["search_mode"] = mode
             structured["search_note"] = note
+            _record_mcp(ctx, "search")
             return ToolResult(
                 content=[
                     TextContent(
@@ -833,6 +861,13 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             host = xff.split(",")[0].strip() or host
         return f"ip:{host or 'unknown'}"
 
+    def _record_api(state: dict[str, Any], request: Request, kind: str) -> None:
+        if request.method == "HEAD":
+            return
+        st = state.get("stats")
+        if st is not None:
+            st.record("api", kind, _api_client_key(request))
+
     def _api_hadith_item(row: dict[str, Any]) -> dict[str, Any]:
         out = dict(row)
         if not out.get("english_excerpt"):
@@ -872,6 +907,45 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         store: HadithStore = state["store"]
         return _api_json({"collections": store.list_collections()})
 
+    @mcp.custom_route("/api/stats", methods=["GET", "HEAD"])
+    async def api_stats(request: Request) -> Response:
+        state = _api_state()
+        if state is None:
+            body = {
+                "total_searches": 0,
+                "total_lookups": 0,
+                "unique_visitors": 0,
+                "uptime_seconds": 0,
+                "mcp": {"searches": 0, "lookups": 0},
+                "api": {"searches": 0, "lookups": 0},
+            }
+            return Response(
+                content=json.dumps(body).encode("utf-8"),
+                status_code=503,
+                media_type="application/json; charset=utf-8",
+                headers={"Cache-Control": "public, max-age=5"},
+            )
+        boot = state.get("stats_boot_mono")
+        uptime = int(max(0.0, time.monotonic() - float(boot))) if isinstance(boot, (int, float)) else 0
+        st = state.get("stats")
+        if st is None:
+            data: dict[str, Any] = {
+                "total_searches": 0,
+                "total_lookups": 0,
+                "unique_visitors": 0,
+                "mcp": {"searches": 0, "lookups": 0},
+                "api": {"searches": 0, "lookups": 0},
+            }
+        else:
+            data = dict(st.get_stats())
+        data["uptime_seconds"] = uptime
+        return Response(
+            content=json.dumps(data).encode("utf-8"),
+            status_code=200,
+            media_type="application/json; charset=utf-8",
+            headers={"Cache-Control": "public, max-age=30"},
+        )
+
     @mcp.custom_route("/api/hadith/{hadith_id:int}", methods=["GET", "HEAD"])
     async def api_hadith_by_id(request: Request) -> Response:
         state = _api_state()
@@ -885,6 +959,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         row = store.fetch_hadith(hadith_id=hid)
         if row is None:
             return _api_json({"error": "not_found", "hadith": None}, status=404)
+        _record_api(state, request, "lookup")
         return _api_json({"hadith": _api_hadith_item(row)})
 
     @mcp.custom_route("/api/hadith/{hadith_id:int}/cross-references", methods=["GET", "HEAD"])
@@ -921,6 +996,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         row = store.fetch_hadith(collection_slug=slug, id_in_book=id_in_book)
         if row is None:
             return _api_json({"error": "not_found", "hadith": None}, status=404)
+        _record_api(state, request, "lookup")
         return _api_json({"hadith": _api_hadith_item(row)})
 
     @mcp.custom_route("/api/search", methods=["GET", "HEAD"])
@@ -949,19 +1025,27 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
 
         client_key = _api_client_key(request)
 
+        def _api_search_recorded(resp: Response) -> Response:
+            _record_api(state, request, "search")
+            return resp
+
         # Semantic path (if configured and allowed by rate limit)
         if idx is not None and client is not None:
             if rl is not None and not rl.allow(client_key):
-                return _api_keyword_payload(
-                    store, q, limit, coll_filter, note="rate_limited; keyword fallback"
+                return _api_search_recorded(
+                    _api_keyword_payload(
+                        store, q, limit, coll_filter, note="rate_limited; keyword fallback"
+                    )
                 )
 
             cache_key = (q.lower(), limit, coll_filter or "", cfg_local.query_embedding_model)
             if cache is not None:
                 hit = cache.get(cache_key)
                 if hit is not None:
-                    return _api_json(
-                        {"results": hit, "mode": "semantic", "note": "cache"},
+                    return _api_search_recorded(
+                        _api_json(
+                            {"results": hit, "mode": "semantic", "note": "cache"},
+                        )
                     )
 
             coll_id: int | None = None
@@ -979,8 +1063,10 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             except Exception as exc:  # noqa: BLE001
                 if should_fallback_to_keyword(exc):
                     logger.warning("api /search OpenAI fallback: %s", exc)
-                    return _api_keyword_payload(
-                        store, q, limit, coll_filter, note=f"openai_error; keyword fallback ({exc})"
+                    return _api_search_recorded(
+                        _api_keyword_payload(
+                            store, q, limit, coll_filter, note=f"openai_error; keyword fallback ({exc})"
+                        )
                     )
                 raise
 
@@ -991,8 +1077,10 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                     idx.mat.shape[1],
                     model,
                 )
-                return _api_keyword_payload(
-                    store, q, limit, coll_filter, note="dim_mismatch; keyword fallback"
+                return _api_search_recorded(
+                    _api_keyword_payload(
+                        store, q, limit, coll_filter, note="dim_mismatch; keyword fallback"
+                    )
                 )
 
             top = idx.topk(qv, limit, collection_id=coll_id)
@@ -1006,14 +1094,16 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 results.append(item)
             if cache is not None:
                 cache.set(cache_key, results)
-            return _api_json({"results": results, "mode": "semantic", "note": None})
+            return _api_search_recorded(_api_json({"results": results, "mode": "semantic", "note": None}))
 
-        return _api_keyword_payload(
-            store,
-            q,
-            limit,
-            coll_filter,
-            note="semantic unavailable (missing index or OPENAI_API_KEY); used keyword",
+        return _api_search_recorded(
+            _api_keyword_payload(
+                store,
+                q,
+                limit,
+                coll_filter,
+                note="semantic unavailable (missing index or OPENAI_API_KEY); used keyword",
+            )
         )
 
     return mcp

@@ -624,11 +624,27 @@ code {
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-wrap: wrap;
   gap: 8px;
   margin-bottom: 20px;
   font-size: .85rem;
   font-weight: 500;
   color: var(--clr-text-muted);
+}
+
+.usage-stats-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0;
+  font-weight: 400;
+  letter-spacing: 0.01em;
+}
+
+.usage-stats-chips .usage-stat-sep {
+  margin: 0 0.4em;
+  opacity: 0.5;
+  user-select: none;
 }
 
 .status-dot {

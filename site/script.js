@@ -129,7 +129,51 @@
     }
   }
 
+  function formatCount(n) {
+    if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return "0";
+    if (n < 1000) return String(Math.floor(n));
+    const tiers = [
+      { v: 1e9, s: "b" },
+      { v: 1e6, s: "m" },
+      { v: 1e3, s: "k" },
+    ];
+    for (const { v, s } of tiers) {
+      if (n >= v) {
+        const t = n / v;
+        return (t >= 10 ? t.toFixed(0) : t.toFixed(1)) + s;
+      }
+    }
+    return String(n);
+  }
+
+  async function loadUsageStats() {
+    const el = $("#usageStatsChips");
+    if (!el) return;
+    try {
+      const res = await fetch("https://api.hadith-mcp.org/api/stats", {
+        cache: "default",
+      });
+      if (!res.ok) return;
+      const j = await res.json();
+      const s = j.total_searches ?? 0;
+      const l = j.total_lookups ?? 0;
+      const u = j.unique_visitors ?? 0;
+      el.innerHTML = [
+        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+        `<span>${formatCount(s)} searches</span>`,
+        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+        `<span>${formatCount(l)} lookups</span>`,
+        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+        `<span>${formatCount(u)} users</span>`,
+      ].join("");
+      el.hidden = false;
+    } catch {
+      /* leave hidden */
+    }
+  }
+
   checkServer();
+  loadUsageStats();
   setInterval(checkServer, 30000);
 
   // ── Server URL copy button ──

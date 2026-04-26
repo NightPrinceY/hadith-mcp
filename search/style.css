@@ -300,6 +300,14 @@ input:focus, select:focus {
 .status-row { margin: 16px 0; }
 .section-desc { color: var(--clr-text-muted); margin: 0; }
 
+.global-usage-stats {
+  margin: 0 0 10px;
+  font-size: 0.8rem;
+  color: var(--clr-text-muted);
+  opacity: 0.88;
+  letter-spacing: 0.01em;
+}
+
 /* ─── Loading indicator (search in-flight) ─────────────── */
 .loading-indicator {
   display: flex;
@@ -631,6 +639,7 @@ input:focus, select:focus {
 
 body.is-detail-mode .search-panel,
 body.is-detail-mode .status-row,
+body.is-detail-mode .global-usage-stats,
 body.is-detail-mode .hero { display: none; }
 
 .detail-view {

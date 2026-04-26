@@ -11,6 +11,7 @@ HOSTING.local.md
 SEARCH_SETUP.local.md
 data/*.db
 !data/hadith.db
+data/stats.db
 data/*.db-journal
 data/*.bk
 .tmp_test.txt

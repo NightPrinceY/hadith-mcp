@@ -550,6 +550,44 @@
   const themeBtn = document.getElementById("themeToggle");
   themeBtn?.addEventListener("click", toggleTheme);
 
+  const globalUsageStats = document.getElementById("globalUsageStats");
+
+  function formatCount(n) {
+    if (typeof n !== "number" || !Number.isFinite(n) || n < 0) return "0";
+    if (n < 1000) return String(Math.floor(n));
+    const tiers = [
+      { v: 1e9, s: "b" },
+      { v: 1e6, s: "m" },
+      { v: 1e3, s: "k" },
+    ];
+    for (const { v, s } of tiers) {
+      if (n >= v) {
+        const t = n / v;
+        return (t >= 10 ? t.toFixed(0) : t.toFixed(1)) + s;
+      }
+    }
+    return String(n);
+  }
+
+  async function loadGlobalUsageStats() {
+    if (!globalUsageStats) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/stats`, { cache: "default" });
+      if (!res.ok) return;
+      const j = await res.json();
+      const s = j.total_searches ?? 0;
+      const l = j.total_lookups ?? 0;
+      const u = j.unique_visitors ?? 0;
+      globalUsageStats.textContent =
+        `${formatCount(s)} searches  ·  ${formatCount(l)} lookups  ·  ${formatCount(u)} users`;
+      globalUsageStats.hidden = false;
+    } catch {
+      /* keep hidden */
+    }
+  }
+
+  loadGlobalUsageStats();
+
   loadCollections()
     .catch(() => {
       statsText.textContent = "Could not load collections.";
