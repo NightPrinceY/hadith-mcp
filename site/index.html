@@ -283,7 +283,11 @@
     <div class="server-status" id="serverStatus">
       <span class="status-dot" id="statusDot"></span>
       <span class="status-label" id="statusLabel">Checking server…</span>
-      <span class="usage-stats-chips" id="usageStatsChips" hidden aria-live="polite"></span>
+      <span class="usage-stats-chips usage-stats-pending" id="usageStatsChips" aria-live="polite">
+        <!-- usage-stats v2: confirm this comment is in View Source after deploy -->
+        <span class="usage-stat-sep" aria-hidden="true">·</span>
+        <span class="usage-stat-pending" title="Loading usage counters">…</span>
+      </span>
     </div>
     <div class="server-url-box">
       <code class="server-url-value">https://hadith-mcp.org</code>

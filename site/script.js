@@ -49,14 +49,16 @@
   // ── Mobile menu toggle ──
   const toggle = $("#navToggle");
   const links = $("#navLinks");
-  toggle.addEventListener("click", () => {
-    const open = links.classList.toggle("open");
-    toggle.setAttribute("aria-expanded", open);
-  });
+  if (toggle && links) {
+    toggle.addEventListener("click", () => {
+      const open = links.classList.toggle("open");
+      toggle.setAttribute("aria-expanded", open);
+    });
 
-  links.addEventListener("click", (e) => {
-    if (e.target.tagName === "A") links.classList.remove("open");
-  });
+    links.addEventListener("click", (e) => {
+      if (e.target.tagName === "A") links.classList.remove("open");
+    });
+  }
 
   // ── Setup tabs ──
   const tabs = $$(".tab");
@@ -150,30 +152,55 @@
     return String(n);
   }
 
+  function statsUrlCandidates() {
+    const u = new Set();
+    try {
+      if (typeof window !== "undefined" && window.location) {
+        const p = String(window.location.protocol || "");
+        if (p && p !== "file:") {
+          u.add(new URL("/api/stats", window.location.origin).href);
+          u.add(new URL("/api/stats/", window.location.origin).href);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    u.add(`${API_BASE}/api/stats`);
+    u.add(`${API_BASE}/api/stats/`);
+    u.add("https://api.hadith-mcp.org/api/stats");
+    return [...u];
+  }
+
   async function loadUsageStats() {
     const el = $("#usageStatsChips");
     if (!el) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/stats`, {
-        cache: "default",
-      });
-      if (!res.ok) return;
-      const j = await res.json();
-      const s = j.total_searches ?? 0;
-      const l = j.total_lookups ?? 0;
-      const u = j.unique_visitors ?? 0;
-      el.innerHTML = [
-        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
-        `<span>${formatCount(s)} searches</span>`,
-        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
-        `<span>${formatCount(l)} lookups</span>`,
-        '<span class="usage-stat-sep" aria-hidden="true">·</span>',
-        `<span>${formatCount(u)} users</span>`,
-      ].join("");
-      el.hidden = false;
-    } catch {
-      /* leave hidden */
+    for (const url of statsUrlCandidates()) {
+      try {
+        const res = await fetch(url, { cache: "default", mode: "cors" });
+        if (!res.ok) continue;
+        const j = await res.json();
+        const s = j.total_searches ?? 0;
+        const l = j.total_lookups ?? 0;
+        const u = j.unique_visitors ?? 0;
+        el.classList.remove("usage-stats-pending", "usage-stats-missing");
+        el.innerHTML = [
+          '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+          `<span>${formatCount(s)} searches</span>`,
+          '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+          `<span>${formatCount(l)} lookups</span>`,
+          '<span class="usage-stat-sep" aria-hidden="true">·</span>',
+          `<span>${formatCount(u)} users</span>`,
+        ].join("");
+        return;
+      } catch {
+        /* try next URL */
+      }
     }
+    el.classList.add("usage-stats-missing");
+    el.classList.remove("usage-stats-pending");
+    el.innerHTML =
+      '<span class="usage-stat-sep" aria-hidden="true">·</span>' +
+      '<span>stats unavailable</span>';
   }
 
   checkServer();

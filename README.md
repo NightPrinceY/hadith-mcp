@@ -114,6 +114,7 @@ The repo ships a small static search app in **`search/`** and an HTTP REST surfa
   - `GET /api/hadith/{hadith_id}` → `{hadith: {...}}`
   - `GET /api/hadith/{slug}/{id_in_book}` → `{hadith: {...}}`
   - `GET /api/search?q=&limit=&collection=` → `{results, mode, note}`; semantic by default with the same keyword fallback behavior as the MCP tool. Shares `HADITH_MCP_RATE_LIMIT_SEARCH_RPM` and the query cache with MCP clients, so one budget covers both surfaces.
+  - `GET /api/stats` (optional trailing slash) → aggregate search/lookup counts, unique visitors, uptime. Landing + search UIs try **same-origin** `GET /api/stats` first, then the public API host; re-copy **`site/`** and **`search/`** when you update those pages, or the browser will run old HTML/JS.
 
 ## Configuration
 

@@ -308,6 +308,12 @@ input:focus, select:focus {
   letter-spacing: 0.01em;
 }
 
+.global-usage-stats.global-usage-missing,
+.global-usage-pending {
+  font-style: italic;
+  opacity: 0.75;
+}
+
 /* ─── Loading indicator (search in-flight) ─────────────── */
 .loading-indicator {
   display: flex;

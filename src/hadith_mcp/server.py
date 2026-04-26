@@ -916,8 +916,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
         store: HadithStore = state["store"]
         return _api_json({"collections": store.list_collections()})
 
-    @mcp.custom_route("/api/stats", methods=["GET", "HEAD"])
-    async def api_stats(request: Request) -> Response:
+    async def _api_stats_get(request: Request) -> Response:
         state = _api_state()
         if state is None:
             body = {
@@ -955,8 +954,23 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             headers={**_api_cors_headers(), "Cache-Control": "public, max-age=30"},
         )
 
+    @mcp.custom_route("/api/stats", methods=["GET", "HEAD"])
+    async def api_stats(request: Request) -> Response:
+        return await _api_stats_get(request)
+
+    @mcp.custom_route("/api/stats/", methods=["GET", "HEAD"])
+    async def api_stats_slash(request: Request) -> Response:
+        return await _api_stats_get(request)
+
     @mcp.custom_route("/api/stats", methods=["OPTIONS"])
     async def api_stats_options(_request: Request) -> Response:
+        return Response(
+            status_code=204,
+            headers=_api_cors_headers(),
+        )
+
+    @mcp.custom_route("/api/stats/", methods=["OPTIONS"])
+    async def api_stats_slash_options(_request: Request) -> Response:
         return Response(
             status_code=204,
             headers=_api_cors_headers(),

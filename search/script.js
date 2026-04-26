@@ -569,21 +569,46 @@
     return String(n);
   }
 
+  function statsUrlCandidates() {
+    const u = new Set();
+    try {
+      if (typeof window !== "undefined" && window.location) {
+        const p = String(window.location.protocol || "");
+        if (p && p !== "file:") {
+          u.add(new URL("/api/stats", window.location.origin).href);
+          u.add(new URL("/api/stats/", window.location.origin).href);
+        }
+      }
+    } catch {
+      /* ignore */
+    }
+    u.add(`${API_BASE}/api/stats`);
+    u.add(`${API_BASE}/api/stats/`);
+    u.add("https://api.hadith-mcp.org/api/stats");
+    return [...u];
+  }
+
   async function loadGlobalUsageStats() {
     if (!globalUsageStats) return;
-    try {
-      const res = await fetch(`${API_BASE}/api/stats`, { cache: "default" });
-      if (!res.ok) return;
-      const j = await res.json();
-      const s = j.total_searches ?? 0;
-      const l = j.total_lookups ?? 0;
-      const u = j.unique_visitors ?? 0;
-      globalUsageStats.textContent =
-        `${formatCount(s)} searches  ·  ${formatCount(l)} lookups  ·  ${formatCount(u)} users`;
-      globalUsageStats.hidden = false;
-    } catch {
-      /* keep hidden */
+    for (const url of statsUrlCandidates()) {
+      try {
+        const res = await fetch(url, { cache: "default", mode: "cors" });
+        if (!res.ok) continue;
+        const j = await res.json();
+        const s = j.total_searches ?? 0;
+        const l = j.total_lookups ?? 0;
+        const u = j.unique_visitors ?? 0;
+        globalUsageStats.classList.remove("global-usage-pending", "global-usage-missing");
+        globalUsageStats.textContent =
+          `${formatCount(s)} searches  ·  ${formatCount(l)} lookups  ·  ${formatCount(u)} users`;
+        return;
+      } catch {
+        /* try next */
+      }
     }
+    globalUsageStats.classList.add("global-usage-missing");
+    globalUsageStats.classList.remove("global-usage-pending");
+    globalUsageStats.textContent = "Stats unavailable (check /api and deploy)";
   }
 
   loadGlobalUsageStats();

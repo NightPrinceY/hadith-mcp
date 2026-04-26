@@ -647,6 +647,15 @@ code {
   user-select: none;
 }
 
+.usage-stats-chips.usage-stats-missing,
+.usage-stat-pending {
+  opacity: 0.65;
+}
+
+.usage-stats-chips.usage-stats-missing {
+  font-style: italic;
+}
+
 .status-dot {
   width: 10px;
   height: 10px;
