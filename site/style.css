@@ -34,17 +34,17 @@
 /* Dark palette — auto (respects OS) unless user has manually chosen light. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --clr-bg: #14110d;
-    --clr-bg-alt: #241f17;
-    --clr-surface: #1f1c17;
-    --clr-text: #f2ecdb;
-    --clr-text-muted: #c7b99f;
+    --clr-bg: #0f131a;
+    --clr-bg-alt: #161d27;
+    --clr-surface: #1a222d;
+    --clr-text: #e6edf7;
+    --clr-text-muted: #a7b3c4;
     --clr-accent: #5fc89a;
     --clr-accent-light: #1a3a27;
     --clr-accent-dark: #82e0b6;
     --clr-danger: #e87070;
     --clr-danger-light: #3a2020;
-    --clr-border: #3a3228;
+    --clr-border: #2a3645;
     --clr-code-bg: #111118;
     --clr-code-text: #cdd6f4;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, .4);
@@ -54,17 +54,17 @@
 
 /* Dark palette — manual toggle override. */
 :root[data-theme="dark"] {
-  --clr-bg: #14110d;
-  --clr-bg-alt: #241f17;
-  --clr-surface: #1f1c17;
-  --clr-text: #f2ecdb;
-  --clr-text-muted: #c7b99f;
+  --clr-bg: #0f131a;
+  --clr-bg-alt: #161d27;
+  --clr-surface: #1a222d;
+  --clr-text: #e6edf7;
+  --clr-text-muted: #a7b3c4;
   --clr-accent: #5fc89a;
   --clr-accent-light: #1a3a27;
   --clr-accent-dark: #82e0b6;
   --clr-danger: #e87070;
   --clr-danger-light: #3a2020;
-  --clr-border: #3a3228;
+  --clr-border: #2a3645;
   --clr-code-bg: #111118;
   --clr-code-text: #cdd6f4;
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, .4);
@@ -1014,22 +1014,22 @@ code {
 /* ─── Dark-mode overrides for hardcoded colours ─── */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) .disclaimer-card {
-    border-color: #8b6914;
+    border-color: #3f5a86;
     box-shadow: 0 2px 12px rgba(0, 0, 0, .3);
   }
   :root:not([data-theme="light"]) .disclaimer-header {
-    border-bottom-color: #3a3020;
+    border-bottom-color: #2a3647;
   }
   :root:not([data-theme="light"]) .disclaimer-icon {
-    background: #3a2e17;
-    color: #f0d294;
+    background: #1f2f46;
+    color: #9ec5ff;
   }
   :root:not([data-theme="light"]) .disclaimer-header h2 {
-    color: #f0d294;
+    color: #9ec5ff;
   }
   :root:not([data-theme="light"]) .disclaimer-footer {
-    border-top-color: #3a3020;
-    color: #f0d294;
+    border-top-color: #2a3647;
+    color: #9ec5ff;
   }
   :root:not([data-theme="light"]) .status-label.online {
     color: #4ade80;
@@ -1037,22 +1037,22 @@ code {
 }
 
 :root[data-theme="dark"] .disclaimer-card {
-  border-color: #8b6914;
+  border-color: #3f5a86;
   box-shadow: 0 2px 12px rgba(0, 0, 0, .3);
 }
 :root[data-theme="dark"] .disclaimer-header {
-  border-bottom-color: #3a3020;
+  border-bottom-color: #2a3647;
 }
 :root[data-theme="dark"] .disclaimer-icon {
-  background: #3a2e17;
-  color: #f0d294;
+  background: #1f2f46;
+  color: #9ec5ff;
 }
 :root[data-theme="dark"] .disclaimer-header h2 {
-  color: #f0d294;
+  color: #9ec5ff;
 }
 :root[data-theme="dark"] .disclaimer-footer {
-  border-top-color: #3a3020;
-  color: #f0d294;
+  border-top-color: #2a3647;
+  color: #9ec5ff;
 }
 :root[data-theme="dark"] .status-label.online {
   color: #4ade80;
