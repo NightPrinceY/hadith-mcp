@@ -840,13 +840,22 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
     # --- public REST API backing the search.hadith-mcp.org frontend ---
     #
     # Lives on the same FastMCP process; exposed at api.hadith-mcp.org via nginx
-    # proxying /api/* to this backend. CORS is handled at the nginx layer.
+    # proxying /api/* to this backend. Browsers need ACAO to read JSON from
+    # hadith-mcp.org and search.hadith-mcp.org; include here so it works even if
+    # nginx is not adding CORS for these routes.
+
+    def _api_cors_headers() -> dict[str, str]:
+        return {
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Methods": "GET, HEAD, OPTIONS",
+        }
 
     def _api_json(data: Any, status: int = 200) -> Response:
         return Response(
             content=json.dumps(data).encode("utf-8"),
             status_code=status,
             media_type="application/json; charset=utf-8",
+            headers=_api_cors_headers(),
         )
 
     def _api_state() -> dict[str, Any] | None:
@@ -923,7 +932,7 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
                 content=json.dumps(body).encode("utf-8"),
                 status_code=503,
                 media_type="application/json; charset=utf-8",
-                headers={"Cache-Control": "public, max-age=5"},
+                headers={**_api_cors_headers(), "Cache-Control": "public, max-age=5"},
             )
         boot = state.get("stats_boot_mono")
         uptime = int(max(0.0, time.monotonic() - float(boot))) if isinstance(boot, (int, float)) else 0
@@ -943,7 +952,14 @@ def build_server(*, config_yaml: Path | None = None) -> FastMCP:
             content=json.dumps(data).encode("utf-8"),
             status_code=200,
             media_type="application/json; charset=utf-8",
-            headers={"Cache-Control": "public, max-age=30"},
+            headers={**_api_cors_headers(), "Cache-Control": "public, max-age=30"},
+        )
+
+    @mcp.custom_route("/api/stats", methods=["OPTIONS"])
+    async def api_stats_options(_request: Request) -> Response:
+        return Response(
+            status_code=204,
+            headers=_api_cors_headers(),
         )
 
     @mcp.custom_route("/api/hadith/{hadith_id:int}", methods=["GET", "HEAD"])

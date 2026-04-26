@@ -1,6 +1,10 @@
 (() => {
   "use strict";
 
+  const API_BASE = (typeof window !== "undefined" && window.HADITH_API_BASE)
+    ? String(window.HADITH_API_BASE).replace(/\/$/, "")
+    : "https://api.hadith-mcp.org";
+
   const $ = (sel, root = document) => root.querySelector(sel);
   const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
 
@@ -150,7 +154,7 @@
     const el = $("#usageStatsChips");
     if (!el) return;
     try {
-      const res = await fetch("https://api.hadith-mcp.org/api/stats", {
+      const res = await fetch(`${API_BASE}/api/stats`, {
         cache: "default",
       });
       if (!res.ok) return;
