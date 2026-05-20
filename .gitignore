@@ -9,14 +9,12 @@ build/
 # Private hosting runbook (copy to server manually; not published)
 HOSTING.local.md
 SEARCH_SETUP.local.md
-data/*.db
-!data/hadith.db
-data/stats.db
-data/*.db-journal
-data/*.bk
 .tmp_test.txt
-data/*checkpoint*.jsonl
-data/embeddings_*.jsonl
+
+# Data directory — generated artifacts, not tracked
+data/*
+!data/.gitkeep
+!data/README.md
 .pytest_cache/
 .ruff_cache/
 

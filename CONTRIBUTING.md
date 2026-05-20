@@ -17,11 +17,11 @@ uv run --python 3.12 --extra dev pytest -q
 - Run `pytest` and ensure all tests pass.
 - Write tests for new logic when practical.
 
-## Do not commit data artifacts
+## Data directory
 
-The `data/` directory contains large binary files managed via Git LFS. **Do not include `data/hadith.db` or `data/SHA256SUMS` changes in your PR.** The database is rebuilt by maintainers from the upstream source using the pipeline scripts.
+The `data/` directory is gitignored — it contains generated artifacts (`hadith.db`, checkpoints, etc.) that are built locally via the pipeline scripts. See `data/README.md` for build instructions.
 
-If your change affects the pipeline or schema, describe what the expected DB output change would be in your PR description so maintainers can rebuild and verify.
+**Never commit database files or other generated data.** If your change affects the pipeline or schema, describe the expected output change in your PR description so maintainers can rebuild and verify.
 
 ## Reporting issues
 
